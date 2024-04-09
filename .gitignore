@@ -3,6 +3,8 @@ soundfont/
 soundfonts/
 test/
 tests/
+output/
+outputs/
 prueba.py
 pruebas.py
 

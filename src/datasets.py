@@ -12,7 +12,7 @@ class MaestroPianorollDataset(Dataset):
 
     def __init__(self, data_path: str, nbars: int = 2, resolution: int = 8):
         self.data_path = data_path
-        self.bar_length = nbars * resolution
+        self.bar_length = nbars * resolution * 4
         self.dataset: list[np.ndarray] = self.get_dataset()
 
     def get_dataset(self) -> list[np.ndarray]:

@@ -72,8 +72,10 @@ def transform_data() -> None:
 
     for i, file in enumerate(pbar):
         track = ppr.read(os.path.join(midi_path, file), resolution=RESOLUTION)
-        file_name = f"pianoroll_{i}.npy"
-        np.save(os.path.join(npy_path, file_name), track.tracks[0].pianoroll)
+
+        # Keep only piano keys
+        pianoroll = track.tracks[0].pianoroll[:, 21:109]
+        np.save(os.path.join(npy_path, f"pianoroll_{i}.npy"), pianoroll)
 
     print("Data successfully transformed!")
 

@@ -82,6 +82,21 @@ To get a local copy up and running follow these simple steps.
 
 ## 👥 Contributors
 
-<a href="https://github.com/winoo19/deep-vibes/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=winoo19/deep-vibes" />
-</a>
+<div style="display: flex; justify-content: center;">
+  <a href="https://github.com/winoo19" style="margin: 0px 10px">
+    <!-- <img src="https://contrib.rocks/image?repo=winoo19/deep-vibes" /> -->
+    <img src="https://github.com/winoo19.png" style="border-radius: 50%;" width="50" height="50">
+  </a>
+  <a href="https://github.com/gomicoder17" style="margin: 0px 10px">
+    <!-- <img src="https://contrib.rocks/image?repo=winoo19/deep-vibes" /> -->
+    <img src="https://github.com/gomicoder17.png" style="border-radius: 50%;" width="50" height="50">
+  </a>
+  <a href="https://github.com/nicolasvillagranp" style="margin: 0px 10px">
+    <!-- <img src="https://contrib.rocks/image?repo=winoo19/deep-vibes" /> -->
+    <img src="https://github.com/nicolasvillagranp.png" style="border-radius: 50%;" width="50" height="50">
+  </a>
+  <a href="https://github.com/mariokroll" style="margin: 0px 10px">
+    <!-- <img src="https://contrib.rocks/image?repo=winoo19/deep-vibes" /> -->
+    <img src="https://github.com/mariokroll.png" style="border-radius: 50%;" width="50" height="50">
+  </a>
+</div>

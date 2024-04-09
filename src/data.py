@@ -1,8 +1,8 @@
 # deep learning libraries
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Dataset
 
 # own libraries
-from src.datasets import MaestroPianorollDataset
+from src.datasets import PianorollDataset, PianorollGanCNNDataset
 
 # other libraries
 import pypianoroll as ppr
@@ -79,7 +79,8 @@ def transform_data() -> None:
 
 
 def load_data(
-    nbars: int = 2,
+    dataset: Dataset,
+    n_notes: int = 16,
     batch_size: int = 64,
     shuffle: bool = True,
     drop_last: bool = True,
@@ -90,9 +91,7 @@ def load_data(
     """
     npy_path = os.path.join(DATA_PATH, "npy")
 
-    train_dataset = MaestroPianorollDataset(
-        npy_path, nbars=nbars, resolution=RESOLUTION
-    )
+    train_dataset = dataset(data_path=npy_path, n_notes=n_notes)
 
     data_loader = DataLoader(
         train_dataset,
@@ -108,7 +107,7 @@ def load_data(
 if __name__ == "__main__":
     # download_data()
     # transform_data()
-    data_loader = load_data(nbars=10)
+    data_loader = load_data(PianorollDataset, n_notes=16, batch_size=64)
 
     print("Dataset length:", len(data_loader.dataset))
 

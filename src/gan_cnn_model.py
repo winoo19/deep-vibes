@@ -1,0 +1,163 @@
+# deep learning libraries
+import torch
+import torch.nn as nn
+
+
+class Discriminator(nn.Module):
+    """
+    This class represents the discriminator of the GAN.
+
+    Attributes:
+        conv1 (nn.Conv2d): The first convolutional layer.
+        conv2 (nn.Conv2d): The second convolutional layer.
+        fc (nn.Linear): The fully connected layer.
+    """
+
+    def __init__(self) -> None:
+        """
+        Initializes the Discriminator.
+        """
+
+        super(Discriminator, self).__init__()
+
+        pitch_dim: int = 128
+
+        self.conv1 = nn.Conv2d(1, 14, kernel_size=(2, pitch_dim), stride=2)
+        self.conv2 = nn.Conv2d(14, 77, kernel_size=(4, 1), stride=2)
+        self.bn1 = nn.BatchNorm2d(77)
+
+        self.l1 = nn.Linear(231, 1024)
+        self.bn2 = nn.BatchNorm1d(1024)
+        self.l2 = nn.Linear(1024, 1)
+
+        self.lrelu = nn.LeakyReLU(0.2)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        Forward pass of the discriminator.
+
+        Args:
+            x (torch.Tensor): The input tensor. Shape (batch_size, bar_length, n_pitches).
+
+        Returns:
+            torch.Tensor: The output tensor. Shape (batch_size).
+            torch.Tensor: The feature tensor. Shape (batch_size, 14, bar_length/2, 1).
+        """
+
+        batch_size = x.shape[0]
+
+        x = x.unsqueeze(1)  # (batch_size, 1, bar_length, n_pitches)
+
+        x = self.lrelu(self.conv1(x))  # (batch_size, 14, bar_length/2, 1)
+
+        fx = x
+
+        x = self.lrelu(self.bn1(self.conv2(x)))  # (batch_size, 77, (bar_length-4)/4, 1)
+
+        x = x.view(batch_size, -1)  # (batch_size, 231)
+
+        x = self.lrelu(self.bn2(self.l1(x)))  # (batch_size, 1024)
+
+        x = torch.sigmoid(self.l2(x))  # (batch_size, 1)
+
+        return x, fx
+
+
+class Generator(nn.Module):
+    """
+    This class represents the generator of the GAN.
+
+    Attributes:
+    """
+
+    def __init__(self) -> None:
+        """
+        Initializes the Generator.
+        """
+
+        super(Generator, self).__init__()
+
+        self.pitch_dim: int = 128
+        self.concat_dim: int = 144
+        self.z_dim: int = 100
+
+        self.fc1 = nn.Linear(self.z_dim, 1024)
+        self.bn1 = nn.BatchNorm1d(1024)
+
+        self.fc2 = nn.Linear(1024, self.pitch_dim * 2)
+        self.bn2 = nn.BatchNorm1d(self.pitch_dim * 2)
+
+        self.bn3 = nn.BatchNorm2d(self.pitch_dim)
+        self.bn4 = nn.BatchNorm2d(self.pitch_dim)
+        self.bn5 = nn.BatchNorm2d(self.pitch_dim)
+
+        self.deconv1 = nn.ConvTranspose2d(
+            self.concat_dim, self.pitch_dim, kernel_size=(2, 1), stride=2
+        )
+        self.deconv2 = nn.ConvTranspose2d(
+            self.concat_dim, self.pitch_dim, kernel_size=(2, 1), stride=2
+        )
+        self.deconv3 = nn.ConvTranspose2d(
+            self.concat_dim, self.pitch_dim, kernel_size=(2, 1), stride=2
+        )
+        self.deconv4 = nn.ConvTranspose2d(
+            self.concat_dim, 1, kernel_size=(1, self.pitch_dim), stride=(1, 2)
+        )
+
+        self.cond1 = nn.Conv2d(1, 16, kernel_size=(1, self.pitch_dim), stride=(1, 2))
+        self.cond2 = nn.Conv2d(16, 16, kernel_size=(2, 1), stride=2)
+        self.cond3 = nn.Conv2d(16, 16, kernel_size=(2, 1), stride=2)
+        self.cond4 = nn.Conv2d(16, 16, kernel_size=(2, 1), stride=2)
+
+        self.bn_prev1 = nn.BatchNorm2d(16)
+        self.bn_prev2 = nn.BatchNorm2d(16)
+        self.bn_prev3 = nn.BatchNorm2d(16)
+        self.bn_prev4 = nn.BatchNorm2d(16)
+        self.lrelu = nn.LeakyReLU(0.2)
+
+    def forward(self, x_prev: torch.Tensor, z: torch.Tensor) -> torch.Tensor:
+        """
+        Forward pass of the generator.
+
+        Args:
+            x_prev (torch.Tensor): The previous bar. Shape (batch_size, bar_length, n_pitches).
+            z (torch.Tensor): The noise. Shape (batch_size, z_dim).
+
+        Returns:
+            torch.Tensor: The output tensor. Shape (batch_size, bar_length, n_pitches).
+        """
+        batch_size = x_prev.shape[0]
+        x_prev = x_prev.unsqueeze(1)  # (batch_size, 1, bar_length, n_pitches)
+
+        prev_1 = self.lrelu(
+            self.bn_prev1(self.cond1(x_prev))
+        )  # (batch_size, 16, bar_length, 1)
+        prev_2 = self.lrelu(
+            self.bn_prev2(self.cond2(prev_1))
+        )  # (batch_size, 16, bar_length/2, 1)
+        prev_3 = self.lrelu(
+            self.bn_prev3(self.cond3(prev_2))
+        )  # (batch_size, 16, bar_length/4, 1)
+        prev_4 = self.lrelu(
+            self.bn_prev4(self.cond4(prev_3))
+        )  # (batch_size, 16, bar_length/8, 1)
+
+        z = torch.relu(self.bn1(self.fc1(z)))  # (batch_size, 1024)
+        z = torch.relu(self.bn2(self.fc2(z)))  # (batch_size, 256)
+        z = z.view(
+            batch_size, self.pitch_dim, 2, 1
+        )  # (batch_size, self.pitch_dim, 2, 1)
+        z = torch.cat((z, prev_4), 1)  # (batch_size, self.concat_dim, 2, 1)
+
+        x = torch.relu(self.bn3(self.deconv1(z)))  # (batch_size, self.pitch_dim, 4, 1)
+        x = torch.cat((x, prev_3), 1)  # (batch_size, self.concat_dim, 4, 1)
+
+        x = torch.relu(self.bn4(self.deconv2(x)))  # (batch_size, self.pitch_dim, 8, 1)
+        x = torch.cat((x, prev_2), 1)  # (batch_size, self.concat_dim, 8, 1)
+
+        x = torch.relu(self.bn5(self.deconv3(x)))  # (batch_size, self.pitch_dim, 16, 1)
+        x = torch.cat((x, prev_1), 1)  # (batch_size, self.concat_dim, 16, 1)
+
+        x = torch.sigmoid(self.deconv4(x))  # (batch_size, 1, bar_length, n_pitches)
+
+        return x.squeeze(1)

@@ -3,15 +3,16 @@ from torch.utils.data import Dataset
 
 import os
 import numpy as np
-from tqdm import tqdm
 
 
 class MaestroPianorollDataset(Dataset):
-    def __init__(self, data_path: str, nbar: int = 2, resolution: int = 8):
+    """
+    Dataset class for the MAESTRO dataset.
+    """
+
+    def __init__(self, data_path: str, nbars: int = 2, resolution: int = 8):
         self.data_path = data_path
-        self.nbar = nbar
-        self.resolution = resolution
-        self.bar_length = nbar * resolution
+        self.bar_length = nbars * resolution
         self.dataset: list[np.ndarray] = self.get_dataset()
 
     def get_dataset(self) -> list[np.ndarray]:

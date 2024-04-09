@@ -1,5 +1,5 @@
 # deep learning libraries
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import DataLoader
 
 # own libraries
 from src.datasets import MaestroPianorollDataset
@@ -79,19 +79,21 @@ def transform_data() -> None:
 
 
 def load_data(
+    nbars: int = 2,
     batch_size: int = 64,
     shuffle: bool = True,
     drop_last: bool = True,
     num_workers: int = 0,
 ) -> DataLoader:
     """
-    This method a dataloader for the dataset.
+    This method creates a dataloader for the dataset.
     """
     npy_path = os.path.join(DATA_PATH, "npy")
 
-    train_dataset = MaestroPianorollDataset(npy_path)
+    train_dataset = MaestroPianorollDataset(
+        npy_path, nbars=nbars, resolution=RESOLUTION
+    )
 
-    # Create dataloaders
     data_loader = DataLoader(
         train_dataset,
         batch_size=batch_size,
@@ -106,10 +108,13 @@ def load_data(
 if __name__ == "__main__":
     # download_data()
     # transform_data()
-    data_loader = load_data()
+    data_loader = load_data(nbars=10)
+
+    print("Dataset length:", len(data_loader.dataset))
 
     for i, data in enumerate(data_loader):
-        print(i, data.shape)
+        print("Item:", i, data.shape)
         print(data[0])
+        print("Non zero elements:", np.count_nonzero(data[0]))
         if i == 0:
             break

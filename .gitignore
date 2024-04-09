@@ -7,6 +7,9 @@ output/
 outputs/
 prueba.py
 pruebas.py
+test/
+tests/
+.vscode/
 
 
 # Byte-compiled / optimized / DLL files

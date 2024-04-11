@@ -8,6 +8,8 @@ pruebas.py
 test/
 tests/
 .vscode/
+checkpoints/
+generated/
 
 
 # Byte-compiled / optimized / DLL files

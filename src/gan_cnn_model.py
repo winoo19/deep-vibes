@@ -13,14 +13,12 @@ class Discriminator(nn.Module):
         fc (nn.Linear): The fully connected layer.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, pitch_dim: int = 128) -> None:
         """
         Initializes the Discriminator.
         """
 
         super(Discriminator, self).__init__()
-
-        pitch_dim: int = 128
 
         self.conv1 = nn.Conv2d(1, 14, kernel_size=(2, pitch_dim), stride=2)
         self.conv2 = nn.Conv2d(14, 77, kernel_size=(4, 1), stride=2)
@@ -58,7 +56,7 @@ class Discriminator(nn.Module):
 
         x = self.lrelu(self.bn2(self.l1(x)))  # (batch_size, 1024)
 
-        x = torch.sigmoid(self.l2(x))  # (batch_size, 1)
+        x = self.l2(x)  # (batch_size, 1)
 
         return x, fx
 
@@ -70,16 +68,19 @@ class Generator(nn.Module):
     Attributes:
     """
 
-    def __init__(self) -> None:
+    def __init__(
+        self, pitch_dim: int = 128, cond_dim: int = 16, z_dim: int = 100
+    ) -> None:
         """
         Initializes the Generator.
         """
 
         super(Generator, self).__init__()
 
-        self.pitch_dim: int = 128
-        self.concat_dim: int = 144
-        self.z_dim: int = 100
+        self.pitch_dim: int = pitch_dim
+        self.cond_dim: int = cond_dim
+        self.concat_dim: int = self.pitch_dim + self.cond_dim
+        self.z_dim: int = z_dim
 
         self.fc1 = nn.Linear(self.z_dim, 1024)
         self.bn1 = nn.BatchNorm1d(1024)
@@ -104,18 +105,26 @@ class Generator(nn.Module):
             self.concat_dim, 1, kernel_size=(1, self.pitch_dim), stride=(1, 2)
         )
 
-        self.cond1 = nn.Conv2d(1, 16, kernel_size=(1, self.pitch_dim), stride=(1, 2))
-        self.cond2 = nn.Conv2d(16, 16, kernel_size=(2, 1), stride=2)
-        self.cond3 = nn.Conv2d(16, 16, kernel_size=(2, 1), stride=2)
-        self.cond4 = nn.Conv2d(16, 16, kernel_size=(2, 1), stride=2)
+        self.conv1 = nn.Conv2d(
+            1, self.cond_dim, kernel_size=(1, self.pitch_dim), stride=(1, 2)
+        )
+        self.conv2 = nn.Conv2d(
+            self.cond_dim, self.cond_dim, kernel_size=(2, 1), stride=2
+        )
+        self.conv3 = nn.Conv2d(
+            self.cond_dim, self.cond_dim, kernel_size=(2, 1), stride=2
+        )
+        self.conv4 = nn.Conv2d(
+            self.cond_dim, self.cond_dim, kernel_size=(2, 1), stride=2
+        )
 
-        self.bn_prev1 = nn.BatchNorm2d(16)
-        self.bn_prev2 = nn.BatchNorm2d(16)
-        self.bn_prev3 = nn.BatchNorm2d(16)
-        self.bn_prev4 = nn.BatchNorm2d(16)
+        self.bn_prev1 = nn.BatchNorm2d(self.cond_dim)
+        self.bn_prev2 = nn.BatchNorm2d(self.cond_dim)
+        self.bn_prev3 = nn.BatchNorm2d(self.cond_dim)
+        self.bn_prev4 = nn.BatchNorm2d(self.cond_dim)
         self.lrelu = nn.LeakyReLU(0.2)
 
-    def forward(self, x_prev: torch.Tensor, z: torch.Tensor) -> torch.Tensor:
+    def forward(self, z: torch.Tensor, x_prev: torch.Tensor) -> torch.Tensor:
         """
         Forward pass of the generator.
 
@@ -130,17 +139,17 @@ class Generator(nn.Module):
         x_prev = x_prev.unsqueeze(1)  # (batch_size, 1, bar_length, n_pitches)
 
         prev_1 = self.lrelu(
-            self.bn_prev1(self.cond1(x_prev))
-        )  # (batch_size, 16, bar_length, 1)
+            self.bn_prev1(self.conv1(x_prev))
+        )  # (batch_size, cond_dim, bar_length, 1)
         prev_2 = self.lrelu(
-            self.bn_prev2(self.cond2(prev_1))
-        )  # (batch_size, 16, bar_length/2, 1)
+            self.bn_prev2(self.conv2(prev_1))
+        )  # (batch_size, cond_dim, bar_length/2, 1)
         prev_3 = self.lrelu(
-            self.bn_prev3(self.cond3(prev_2))
-        )  # (batch_size, 16, bar_length/4, 1)
+            self.bn_prev3(self.conv3(prev_2))
+        )  # (batch_size, cond_dim, bar_length/4, 1)
         prev_4 = self.lrelu(
-            self.bn_prev4(self.cond4(prev_3))
-        )  # (batch_size, 16, bar_length/8, 1)
+            self.bn_prev4(self.conv4(prev_3))
+        )  # (batch_size, cond_dim, bar_length/8, 1)
 
         z = torch.relu(self.bn1(self.fc1(z)))  # (batch_size, 1024)
         z = torch.relu(self.bn2(self.fc2(z)))  # (batch_size, 256)

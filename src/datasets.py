@@ -71,5 +71,7 @@ class PianorollGanCNNDataset(Dataset):
     def __len__(self):
         return len(self.dataset)
 
-    def __getitem__(self, idx: int) -> torch.Tensor:
-        return torch.tensor(self.dataset[idx], dtype=torch.float32)
+    def __getitem__(self, idx: int) -> tuple[torch.Tensor, torch.Tensor]:
+        return torch.tensor(self.dataset[idx][0], dtype=torch.float32), torch.tensor(
+            self.dataset[idx][1], dtype=torch.float32
+        )

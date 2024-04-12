@@ -48,7 +48,7 @@ class Discriminator(nn.Module):
 
         x = self.lrelu(self.conv1(x))  # (batch_size, 14, bar_length/2, 1)
 
-        fx = x
+        fx = x.clone()
 
         x = self.lrelu(self.bn1(self.conv2(x)))  # (batch_size, 77, (bar_length-4)/4, 1)
 

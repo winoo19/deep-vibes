@@ -64,7 +64,8 @@ class PianorollGanCNNDataset(Dataset):
                 pianoroll[i * self.n_notes : (i + 1) * self.n_notes] for i in range(n)
             )
 
-            dataset.extend(map(np.array, zip(track, track[1:])))
+            # Group the current and previous bar (real, prev)
+            dataset.extend(map(np.array, zip(track[1:], track)))
 
         return dataset
 

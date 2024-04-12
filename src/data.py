@@ -5,11 +5,8 @@ from torch.utils.data import DataLoader, Dataset
 from src.datasets import PianorollDataset, PianorollGanCNNDataset
 from src.midi import (
     midi2pianoroll,
-    piano_roll_to_pretty_midi,
     pianoroll2matrix,
     trim_silence,
-    matrix2pianoroll,
-    pianoroll2audio,
 )
 
 # other libraries
@@ -82,6 +79,8 @@ def setup_data():
     with zipfile.ZipFile(zip_file_path, "r") as zip_ref:
         zip_ref.extractall(DATA_FOLDER)
 
+    print("Data successfully extracted!")
+
     # Create midi folder
     os.makedirs(os.path.join(DATA_FOLDER, "midi"), exist_ok=True)
 
@@ -105,7 +104,7 @@ def get_most_common_composers(n_most_common: int = 10) -> tuple:
     midi_path = os.path.join(DATA_FOLDER, "midi")
 
     composer_names = [
-        fn.split(",")[0]
+        fn.split(",")[1] + " " + fn.split(",")[0]
         for fn in os.listdir(midi_path)
         if fn.endswith(".midi") and "," in fn
     ]
@@ -130,7 +129,7 @@ def explore_data() -> None:
 
     plt.figure(figsize=(10, 7))
     sns.barplot(x=composers[:10], y=counts[:10], palette="viridis")
-    plt.xticks(rotation=45)
+    plt.xticks(rotation=15)
     plt.title("10 most common composers")
     plt.show()
 
@@ -151,11 +150,19 @@ def transform_data() -> None:
 
     most_common_composers, _ = get_most_common_composers(n_most_common=10)
 
-    pbar = tqdm(os.listdir(midi_path))
+    # Skip if composer is not in most common composers
+    valid_paths = [
+        path
+        for path in os.listdir(midi_path)
+        if any(
+            all(name in path for name in composer.split())
+            for composer in most_common_composers
+        )
+        and path.endswith(".midi")
+    ]
+
+    pbar = tqdm(valid_paths, desc="Transforming data")
     for i, file in enumerate(pbar):
-        # Skip if composer is not in most common composers
-        if not any(composer in file for composer in most_common_composers):
-            continue
         pianoroll = midi2pianoroll(os.path.join(midi_path, file), fs=FS)
         matrix = pianoroll2matrix(pianoroll)
         matrix = trim_silence(matrix)
@@ -195,14 +202,14 @@ if __name__ == "__main__":
     # download_data()
     # setup_data()
     # explore_data()
-    # transform_data()
-    # print("Nº songs:", len(os.listdir("data/npy")))
+    transform_data()
+    print("Nº songs:", len(os.listdir("data/npy")))
 
-    dataset = PianorollDataset
-    data_loader = load_data(dataset)
-    print(len(data_loader))
+    # dataset = PianorollDataset
+    # data_loader = load_data(dataset)
+    # print(len(data_loader))
 
     # dataset = PianorollGanCNNDataset
     # data_loader = load_data(dataset)
     # print(len(data_loader))
-    input("Press Enter to continue...")
+    # input("Press Enter to continue...")

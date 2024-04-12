@@ -30,7 +30,7 @@ def midi2pianoroll(midi_file: str, fs: int) -> np.ndarray:
     return piano_roll
 
 
-# THIRD PARTY CODE: https://github.com/craffel/pretty-midi/blob/main/examples/reverse_pianoroll.py
+# Colin Raffel (2018) pretty-midi/examples/reverse_pianoroll.py [Source code]: https://github.com/craffel/pretty-midi/blob/main/examples/reverse_pianoroll.py
 def piano_roll_to_pretty_midi(piano_roll, fs=100, program=0):
     """Convert a Piano Roll array into a PrettyMidi object
      with a single instrument.

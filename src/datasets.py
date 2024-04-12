@@ -6,21 +6,30 @@ import numpy as np
 from tqdm import tqdm
 
 
-class PianorollDataset(Dataset):
+class BasePianorollDataset(Dataset):
     """
-    Dataset class for the MAESTRO dataset.
+    Base Dataset class for the MAESTRO dataset.
     """
 
     def __init__(self, data_path: str, n_notes: int = 16):
         self.data_path = data_path
         self.n_notes = n_notes
-        self.dataset: list[np.ndarray] = self.get_dataset()
+
+
+class PianorollDataset(BasePianorollDataset):
+    """
+    Base Dataset class for the MAESTRO dataset.
+    """
+
+    def __init__(self, data_path: str, n_notes: int = 16):
+        super().__init__(data_path, n_notes)
+        self.dataset = self.get_dataset()
 
     def get_dataset(self) -> list[np.ndarray]:
         """
         Loads all dataset into memory and splits songs into nbar chunks.
         """
-        dataset = []
+        dataset: list[np.ndarray] = []
 
         for file_path in tqdm(os.listdir(self.data_path)):
             pianoroll: np.ndarray = np.load(os.path.join(self.data_path, file_path))
@@ -39,21 +48,20 @@ class PianorollDataset(Dataset):
         return torch.tensor(self.dataset[idx], dtype=torch.float32)
 
 
-class PianorollGanCNNDataset(Dataset):
+class PianorollGanCNNDataset(BasePianorollDataset):
     """
     Dataset class for the MAESTRO dataset for the CNN Gan model.
     """
 
     def __init__(self, data_path: str, n_notes: int = 16):
-        self.data_path = data_path
-        self.n_notes = n_notes
-        self.dataset: list[np.ndarray] = self.get_dataset()
+        super().__init__(data_path, n_notes)
+        self.dataset = self.get_dataset()
 
-    def get_dataset(self) -> list[np.ndarray]:
+    def get_dataset(self) -> list[tuple[np.ndarray, np.ndarray]]:
         """
         Loads all dataset into memory and splits songs into nbar chunks.
         """
-        dataset = []
+        dataset: list[tuple[np.ndarray, np.ndarray]] = []
 
         for file_path in tqdm(os.listdir(self.data_path)):
             pianoroll: np.ndarray = np.load(os.path.join(self.data_path, file_path))
@@ -71,7 +79,7 @@ class PianorollGanCNNDataset(Dataset):
     def __len__(self):
         return len(self.dataset)
 
-    def __getitem__(self, idx: int) -> torch.Tensor:
+    def __getitem__(self, idx: int) -> tuple[torch.Tensor, torch.Tensor]:
         return torch.tensor(self.dataset[idx][0], dtype=torch.float32), torch.tensor(
             self.dataset[idx][1], dtype=torch.float32
         )

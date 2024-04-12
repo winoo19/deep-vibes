@@ -32,7 +32,7 @@ class Discriminator(nn.Module):
 
         self.lrelu = nn.LeakyReLU(0.2)
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def forward(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         """
         Forward pass of the discriminator.
 

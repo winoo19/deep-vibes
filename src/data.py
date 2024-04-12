@@ -104,21 +104,21 @@ def get_most_common_composers(n_most_common: int = 10) -> tuple:
 
     midi_path = os.path.join(DATA_FOLDER, "midi")
 
-    composers = [
+    composer_names = [
         fn.split(",")[0]
         for fn in os.listdir(midi_path)
         if fn.endswith(".midi") and "," in fn
     ]
 
     # x axis is unique composers, y axis is number of compositions
-    composers, counts = np.unique(composers, return_counts=True)
+    composers, counts = np.unique(composer_names, return_counts=True)
 
     # Sort by counts
     indices = np.argsort(-counts)
-    composers = composers[indices]
-    counts = counts[indices]
+    top_composers = composers[indices][:n_most_common]
+    top_counts = counts[indices][:n_most_common]
 
-    return composers[:n_most_common], counts[:n_most_common]
+    return top_composers, top_counts
 
 
 def explore_data() -> None:
@@ -166,7 +166,7 @@ def transform_data() -> None:
 
 
 def load_data(
-    dataset: Dataset,
+    dataset_type: type[PianorollDataset],
     n_notes: int = 16,
     batch_size: int = 64,
     shuffle: bool = True,
@@ -178,9 +178,9 @@ def load_data(
     """
     npy_path = os.path.join(DATA_FOLDER, "npy")
 
-    train_dataset = dataset(data_path=npy_path, n_notes=n_notes)
+    train_dataset = dataset_type(npy_path, n_notes=n_notes)
 
-    data_loader = DataLoader(
+    data_loader: DataLoader = DataLoader(
         train_dataset,
         batch_size=batch_size,
         shuffle=shuffle,
@@ -188,7 +188,7 @@ def load_data(
         num_workers=num_workers,
     )
 
-    return data_loader, train_dataset
+    return data_loader
 
 
 if __name__ == "__main__":
@@ -199,10 +199,10 @@ if __name__ == "__main__":
     # print("Nº songs:", len(os.listdir("data/npy")))
 
     dataset = PianorollDataset
-    data_loader, train_dataset = load_data(dataset)
+    data_loader = load_data(dataset)
     print(len(data_loader))
 
     # dataset = PianorollGanCNNDataset
-    # data_loader, train_dataset = load_data(dataset)
+    # data_loader = load_data(dataset)
     # print(len(data_loader))
     input("Press Enter to continue...")

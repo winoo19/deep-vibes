@@ -6,6 +6,7 @@ test/
 tests/
 output/
 outputs/
+out/
 prueba.py
 pruebas.py
 test/

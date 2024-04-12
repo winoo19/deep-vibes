@@ -3,19 +3,28 @@ from torch.utils.data import DataLoader, Dataset
 
 # own libraries
 from src.datasets import PianorollDataset, PianorollGanCNNDataset
+from src.midi import (
+    midi2pianoroll,
+    piano_roll_to_pretty_midi,
+    pianoroll2matrix,
+    trim_silence,
+    matrix2pianoroll,
+    pianoroll2audio,
+)
 
 # other libraries
-import pypianoroll as ppr
 import numpy as np
 import os
 import requests
 import zipfile
 import shutil
 from tqdm import tqdm
+import matplotlib.pyplot as plt
+import seaborn as sns
 
 
-DATA_PATH = "data"
-RESOLUTION = 8
+DATA_FOLDER = "data"
+FS = 16
 
 
 def download_data() -> None:
@@ -27,7 +36,7 @@ def download_data() -> None:
 
     response = requests.get(url)
 
-    temp_path = os.path.join(DATA_PATH, "temp")
+    temp_path = os.path.join(DATA_FOLDER, "temp")
     zip_file_path = os.path.join(temp_path, "maestro-v3.0.0-midi.zip")
 
     # Create temp folder
@@ -40,18 +49,90 @@ def download_data() -> None:
         zip_ref.extractall(temp_path)
 
     # Create midi folder
-    os.makedirs(os.path.join(DATA_PATH, "midi"), exist_ok=True)
+    os.makedirs(os.path.join(DATA_FOLDER, "midi"), exist_ok=True)
 
     # Loop all folders and move files to data folder
     for root, _, files in os.walk(temp_path):
         for file in files:
             if file.endswith(".midi"):
                 os.rename(
-                    os.path.join(root, file), os.path.join(DATA_PATH, "midi", file)
+                    os.path.join(root, file), os.path.join(DATA_FOLDER, "midi", file)
                 )
 
     # Remove temp folder
     shutil.rmtree(temp_path)
+
+
+def setup_data():
+    """
+    This method sets up the data folder.
+    """
+
+    if os.path.exists(os.path.join(DATA_FOLDER, "midi")):
+        print("Data already extracted!")
+        return
+
+    # Check if src/data.py data/surname_checked_midis_v1.2.zip exists
+    zip_file_path = os.path.join(DATA_FOLDER, "surname_checked_midis_v1.2.zip")
+    if not os.path.exists(zip_file_path):
+        print("Zip is missing!")
+        return
+
+    # Extract all midi files into the data folder
+    with zipfile.ZipFile(zip_file_path, "r") as zip_ref:
+        zip_ref.extractall(DATA_FOLDER)
+
+    # Create midi folder
+    os.makedirs(os.path.join(DATA_FOLDER, "midi"), exist_ok=True)
+
+    # Loop all folders and move files to data folder
+    for root, _, files in os.walk(os.path.join(DATA_FOLDER, "surname_checked_midis")):
+        for file in files:
+            if file.endswith(".mid"):
+                output_file = os.path.join(
+                    DATA_FOLDER, "midi", file.replace(".mid", ".midi")
+                )
+                os.rename(os.path.join(root, file), output_file)
+
+    print("Data moved to midi folder!")
+
+
+def get_most_common_composers(n_most_common: int = 10) -> tuple:
+    """
+    This method returns the 10 most common composers.
+    """
+
+    midi_path = os.path.join(DATA_FOLDER, "midi")
+
+    composers = [
+        fn.split(",")[0]
+        for fn in os.listdir(midi_path)
+        if fn.endswith(".midi") and "," in fn
+    ]
+
+    # x axis is unique composers, y axis is number of compositions
+    composers, counts = np.unique(composers, return_counts=True)
+
+    # Sort by counts
+    indices = np.argsort(-counts)
+    composers = composers[indices]
+    counts = counts[indices]
+
+    return composers[:n_most_common], counts[:n_most_common]
+
+
+def explore_data() -> None:
+    """
+    This method explores the data.
+    """
+
+    composers, counts = get_most_common_composers()
+
+    plt.figure(figsize=(10, 7))
+    sns.barplot(x=composers[:10], y=counts[:10], palette="viridis")
+    plt.xticks(rotation=45)
+    plt.title("10 most common composers")
+    plt.show()
 
 
 def transform_data() -> None:
@@ -59,23 +140,27 @@ def transform_data() -> None:
     This method transforms the data from midi to piano roll and saves it as a numpy file.
     """
 
-    midi_path = os.path.join(DATA_PATH, "midi")
-    npy_path = os.path.join(DATA_PATH, "npy")
+    midi_path = os.path.join(DATA_FOLDER, "midi")
+    npy_path = os.path.join(DATA_FOLDER, "npy")
 
-    if not os.path.exists(midi_path):
-        print("Data is not downloaded. Downloading data...")
-        download_data()
+    if os.path.exists(npy_path):
+        print("Data already transformed!")
+        return
 
     os.makedirs(npy_path, exist_ok=True)
 
+    most_common_composers, _ = get_most_common_composers(n_most_common=10)
+
     pbar = tqdm(os.listdir(midi_path))
-
     for i, file in enumerate(pbar):
-        track = ppr.read(os.path.join(midi_path, file), resolution=RESOLUTION)
+        # Skip if composer is not in most common composers
+        if not any(composer in file for composer in most_common_composers):
+            continue
+        pianoroll = midi2pianoroll(os.path.join(midi_path, file), fs=FS)
+        matrix = pianoroll2matrix(pianoroll)
+        matrix = trim_silence(matrix)
 
-        # Keep only piano keys
-        pianoroll = track.tracks[0].pianoroll[:, 21:109]
-        np.save(os.path.join(npy_path, f"pianoroll_{i}.npy"), pianoroll)
+        np.save(os.path.join(npy_path, f"pianoroll_{i}.npy"), matrix)
 
     print("Data successfully transformed!")
 
@@ -91,7 +176,7 @@ def load_data(
     """
     This method creates a dataloader for the dataset.
     """
-    npy_path = os.path.join(DATA_PATH, "npy")
+    npy_path = os.path.join(DATA_FOLDER, "npy")
 
     train_dataset = dataset(data_path=npy_path, n_notes=n_notes)
 
@@ -103,19 +188,21 @@ def load_data(
         num_workers=num_workers,
     )
 
-    return data_loader
+    return data_loader, train_dataset
 
 
 if __name__ == "__main__":
     # download_data()
+    # setup_data()
+    # explore_data()
     # transform_data()
-    data_loader = load_data(PianorollDataset, n_notes=16, batch_size=64)
+    # print("Nº songs:", len(os.listdir("data/npy")))
 
-    print("Dataset length:", len(data_loader.dataset))
+    dataset = PianorollDataset
+    data_loader, train_dataset = load_data(dataset)
+    print(len(data_loader))
 
-    for i, data in enumerate(data_loader):
-        print("Item:", i, data.shape)
-        print(data[0])
-        print("Non zero elements:", np.count_nonzero(data[0]))
-        if i == 0:
-            break
+    # dataset = PianorollGanCNNDataset
+    # data_loader, train_dataset = load_data(dataset)
+    # print(len(data_loader))
+    input("Press Enter to continue...")

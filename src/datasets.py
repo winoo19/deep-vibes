@@ -3,6 +3,7 @@ from torch.utils.data import Dataset
 
 import os
 import numpy as np
+from tqdm import tqdm
 
 
 class PianorollDataset(Dataset):
@@ -21,11 +22,10 @@ class PianorollDataset(Dataset):
         """
         dataset = []
 
-        for file_path in os.listdir(self.data_path):
+        for file_path in tqdm(os.listdir(self.data_path)):
             pianoroll: np.ndarray = np.load(os.path.join(self.data_path, file_path))
 
             n = pianoroll.shape[0] // self.n_notes
-
             dataset.extend(
                 pianoroll[i * self.n_notes : (i + 1) * self.n_notes] for i in range(n)
             )
@@ -55,7 +55,7 @@ class PianorollGanCNNDataset(Dataset):
         """
         dataset = []
 
-        for file_path in os.listdir(self.data_path):
+        for file_path in tqdm(os.listdir(self.data_path)):
             pianoroll: np.ndarray = np.load(os.path.join(self.data_path, file_path))
 
             n = pianoroll.shape[0] // self.n_notes
@@ -64,7 +64,7 @@ class PianorollGanCNNDataset(Dataset):
                 pianoroll[i * self.n_notes : (i + 1) * self.n_notes] for i in range(n)
             )
 
-            dataset.extend(map(np.array, zip(track, track[1:])))
+            dataset.extend(zip(track[1:], track))
 
         return dataset
 
@@ -72,4 +72,6 @@ class PianorollGanCNNDataset(Dataset):
         return len(self.dataset)
 
     def __getitem__(self, idx: int) -> torch.Tensor:
-        return torch.tensor(self.dataset[idx], dtype=torch.float32)
+        return torch.tensor(self.dataset[idx][0], dtype=torch.float32), torch.tensor(
+            self.dataset[idx][1], dtype=torch.float32
+        )

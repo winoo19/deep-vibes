@@ -6,27 +6,38 @@ import numpy as np
 from tqdm import tqdm
 
 
-class MaestroPianorollDataset(Dataset):
-    def __init__(self, data_path: str, nbar: int = 2, resolution: int = 8):
+class BasePianorollDataset(Dataset):
+    """
+    Base Dataset class for the MAESTRO dataset.
+    """
+
+    def __init__(self, data_path: str, n_notes: int = 16):
         self.data_path = data_path
-        self.nbar = nbar
-        self.resolution = resolution
-        self.bar_length = nbar * resolution
-        self.dataset: list[np.ndarray] = self.get_dataset()
+        self.n_notes = n_notes
+
+
+class PianorollDataset(BasePianorollDataset):
+    """
+    Base Dataset class for the MAESTRO dataset.
+    """
+
+    def __init__(self, data_path: str, n_notes: int = 16):
+        super().__init__(data_path, n_notes)
+        self.dataset = self.get_dataset()
 
     def get_dataset(self) -> list[np.ndarray]:
         """
         Loads all dataset into memory and splits songs into nbar chunks.
         """
-        dataset = []
+        dataset: list[np.ndarray] = []
 
-        for file_path in os.listdir(self.data_path):
-            pianoroll = np.load(os.path.join(self.data_path, file_path))
-            n = pianoroll.shape[0] // self.bar_length
-            for i in range(n):
-                start = i * self.bar_length
-                end = start + self.bar_length
-                dataset.append(pianoroll[start:end])
+        for file_path in tqdm(os.listdir(self.data_path)):
+            pianoroll: np.ndarray = np.load(os.path.join(self.data_path, file_path))
+
+            n = pianoroll.shape[0] // self.n_notes
+            dataset.extend(
+                pianoroll[i * self.n_notes : (i + 1) * self.n_notes] for i in range(n)
+            )
 
         return dataset
 
@@ -35,3 +46,40 @@ class MaestroPianorollDataset(Dataset):
 
     def __getitem__(self, idx):
         return torch.tensor(self.dataset[idx], dtype=torch.float32)
+
+
+class PianorollGanCNNDataset(BasePianorollDataset):
+    """
+    Dataset class for the MAESTRO dataset for the CNN Gan model.
+    """
+
+    def __init__(self, data_path: str, n_notes: int = 16):
+        super().__init__(data_path, n_notes)
+        self.dataset = self.get_dataset()
+
+    def get_dataset(self) -> list[tuple[np.ndarray, np.ndarray]]:
+        """
+        Loads all dataset into memory and splits songs into nbar chunks.
+        """
+        dataset: list[tuple[np.ndarray, np.ndarray]] = []
+
+        for file_path in tqdm(os.listdir(self.data_path)):
+            pianoroll: np.ndarray = np.load(os.path.join(self.data_path, file_path))
+
+            n = pianoroll.shape[0] // self.n_notes
+
+            track = tuple(
+                pianoroll[i * self.n_notes : (i + 1) * self.n_notes] for i in range(n)
+            )
+
+            dataset.extend(zip(track[1:], track))
+
+        return dataset
+
+    def __len__(self):
+        return len(self.dataset)
+
+    def __getitem__(self, idx: int) -> tuple[torch.Tensor, torch.Tensor]:
+        return torch.tensor(self.dataset[idx][0], dtype=torch.float32), torch.tensor(
+            self.dataset[idx][1], dtype=torch.float32
+        )

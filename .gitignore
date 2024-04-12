@@ -1,6 +1,17 @@
+# To have a clean repo
 data/
+soundfont/
+soundfonts/
+test/
+tests/
+output/
+outputs/
+out/
 prueba.py
 pruebas.py
+test/
+tests/
+.vscode/
 
 
 # Byte-compiled / optimized / DLL files

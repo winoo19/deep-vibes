@@ -69,7 +69,7 @@ class Generator(nn.Module):
     """
 
     def __init__(
-        self, pitch_dim: int = 128, cond_dim: int = 16, z_dim: int = 100
+        self, pitch_dim: int = 128, forward_dim: int = 256, cond_dim: int = 256, z_dim: int = 100
     ) -> None:
         """
         Initializes the Generator.
@@ -78,28 +78,29 @@ class Generator(nn.Module):
         super(Generator, self).__init__()
 
         self.pitch_dim: int = pitch_dim
+        self.forward_dim: int = forward_dim
         self.cond_dim: int = cond_dim
-        self.concat_dim: int = self.pitch_dim + self.cond_dim
+        self.concat_dim: int = self.forward_dim + self.cond_dim
         self.z_dim: int = z_dim
 
         self.fc1 = nn.Linear(self.z_dim, 1024)
         self.bn1 = nn.BatchNorm1d(1024)
 
-        self.fc2 = nn.Linear(1024, self.pitch_dim * 2)
-        self.bn2 = nn.BatchNorm1d(self.pitch_dim * 2)
+        self.fc2 = nn.Linear(1024, self.forward_dim * 2)
+        self.bn2 = nn.BatchNorm1d(self.forward_dim * 2)
 
-        self.bn3 = nn.BatchNorm2d(self.pitch_dim)
-        self.bn4 = nn.BatchNorm2d(self.pitch_dim)
-        self.bn5 = nn.BatchNorm2d(self.pitch_dim)
+        self.bn3 = nn.BatchNorm2d(self.forward_dim)
+        self.bn4 = nn.BatchNorm2d(self.forward_dim)
+        self.bn5 = nn.BatchNorm2d(self.forward_dim)
 
         self.deconv1 = nn.ConvTranspose2d(
-            self.concat_dim, self.pitch_dim, kernel_size=(2, 1), stride=2
+            self.concat_dim, self.forward_dim, kernel_size=(2, 1), stride=2
         )
         self.deconv2 = nn.ConvTranspose2d(
-            self.concat_dim, self.pitch_dim, kernel_size=(2, 1), stride=2
+            self.concat_dim, self.forward_dim, kernel_size=(2, 1), stride=2
         )
         self.deconv3 = nn.ConvTranspose2d(
-            self.concat_dim, self.pitch_dim, kernel_size=(2, 1), stride=2
+            self.concat_dim, self.forward_dim, kernel_size=(2, 1), stride=2
         )
         self.deconv4 = nn.ConvTranspose2d(
             self.concat_dim, 1, kernel_size=(1, self.pitch_dim), stride=(1, 2)
@@ -129,14 +130,14 @@ class Generator(nn.Module):
         Forward pass of the generator.
 
         Args:
-            x_prev (torch.Tensor): The previous bar. Shape (batch_size, bar_length, n_pitches).
+            x_prev (torch.Tensor): The previous bar. Shape (batch_size, bar_length, pitch_dim).
             z (torch.Tensor): The noise. Shape (batch_size, z_dim).
 
         Returns:
-            torch.Tensor: The output tensor. Shape (batch_size, bar_length, n_pitches).
+            torch.Tensor: The output tensor. Shape (batch_size, bar_length, pitch_dim).
         """
         batch_size = x_prev.shape[0]
-        x_prev = x_prev.unsqueeze(1)  # (batch_size, 1, bar_length, n_pitches)
+        x_prev = x_prev.unsqueeze(1)  # (batch_size, 1, bar_length, pitch_dim)
 
         prev_1 = self.lrelu(
             self.bn_prev1(self.conv1(x_prev))
@@ -152,21 +153,21 @@ class Generator(nn.Module):
         )  # (batch_size, cond_dim, bar_length/8, 1)
 
         z = torch.relu(self.bn1(self.fc1(z)))  # (batch_size, 1024)
-        z = torch.relu(self.bn2(self.fc2(z)))  # (batch_size, 256)
+        z = torch.relu(self.bn2(self.fc2(z)))  # (batch_size, forward_dim * 2)
         z = z.view(
-            batch_size, self.pitch_dim, 2, 1
-        )  # (batch_size, self.pitch_dim, 2, 1)
-        z = torch.cat((z, prev_4), 1)  # (batch_size, self.concat_dim, 2, 1)
+            batch_size, self.forward_dim, 2, 1
+        )  # (batch_size, forward_dim, 2, 1)
+        z = torch.cat((z, prev_4), 1)  # (batch_size, concat_dim, 2, 1)
 
-        x = torch.relu(self.bn3(self.deconv1(z)))  # (batch_size, self.pitch_dim, 4, 1)
-        x = torch.cat((x, prev_3), 1)  # (batch_size, self.concat_dim, 4, 1)
+        x = torch.relu(self.bn3(self.deconv1(z)))  # (batch_size, forward_dim, 4, 1)
+        x = torch.cat((x, prev_3), 1)  # (batch_size, concat_dim, 4, 1)
 
-        x = torch.relu(self.bn4(self.deconv2(x)))  # (batch_size, self.pitch_dim, 8, 1)
-        x = torch.cat((x, prev_2), 1)  # (batch_size, self.concat_dim, 8, 1)
+        x = torch.relu(self.bn4(self.deconv2(x)))  # (batch_size, forward_dim, 8, 1)
+        x = torch.cat((x, prev_2), 1)  # (batch_size, concat_dim, 8, 1)
 
-        x = torch.relu(self.bn5(self.deconv3(x)))  # (batch_size, self.pitch_dim, 16, 1)
-        x = torch.cat((x, prev_1), 1)  # (batch_size, self.concat_dim, 16, 1)
+        x = torch.relu(self.bn5(self.deconv3(x)))  # (batch_size, forward_dim, 16, 1)
+        x = torch.cat((x, prev_1), 1)  # (batch_size, concat_dim, 16, 1)
 
-        x = torch.sigmoid(self.deconv4(x))  # (batch_size, 1, bar_length, n_pitches)
+        x = torch.sigmoid(self.deconv4(x))  # (batch_size, 1, bar_length, pitch_dim)
 
         return x.squeeze(1)

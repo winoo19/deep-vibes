@@ -1,4 +1,3 @@
-torch==2.1.1
 pypianoroll==1.0.4
 numpy==1.24.4
 tqdm==4.64.1

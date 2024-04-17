@@ -7,13 +7,15 @@ tests/
 output/
 outputs/
 out/
-prueba.py
-pruebas.py
 test/
 tests/
+models/
+runs/
 .vscode/
 checkpoints/
 generated/
+pruebas.py
+prueba.py
 
 
 # Byte-compiled / optimized / DLL files

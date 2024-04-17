@@ -21,6 +21,7 @@ import seaborn as sns
 
 
 DATA_FOLDER = "data"
+DATA_PATH = "data/npy"
 FS = 16
 
 

@@ -84,3 +84,61 @@ class PianorollGanCNNDataset(BasePianorollDataset):
         return torch.tensor(self.dataset[idx][0][0], dtype=torch.float32), torch.tensor(
             self.dataset[idx][1], dtype=torch.float32
         )
+
+
+class PitchDataset(Dataset):
+    """
+    Dataset class for the MAESTRO dataset for the CNN Gan model.
+
+    Args:
+        data_path (str): Path to the dataset.
+        percentage_notes (float): Percentage of notes to keep.
+        np_seed (int): Seed for the random number generator.
+    """
+
+    def __init__(self, data_path: str, n_notes_per_song: int = 10, np_seed: int = None):
+        self.data_path = data_path
+        self.n_notes_per_song = n_notes_per_song
+        if np_seed:
+            np.random.seed(np_seed)
+        self.dataset = self.get_dataset()
+
+    def get_dataset(self) -> np.ndarray:
+        """
+        Loads all dataset into memory keeping only a percentage of notes of each song.
+        """
+        n_files = len(os.listdir(self.data_path))
+
+        dataset: np.ndarray = np.zeros(
+            (n_files * self.n_notes_per_song, 88), dtype=np.float32
+        )
+
+        for i, file_path in enumerate(tqdm(os.listdir(self.data_path))):
+            pianoroll: np.ndarray = np.load(os.path.join(self.data_path, file_path))
+
+            # Choose n_notes_per_file notes randomly
+            if pianoroll.shape[0] < self.n_notes_per_song:
+                continue
+
+            indices = np.random.choice(
+                range(pianoroll.shape[0]),
+                self.n_notes_per_song,
+            )
+
+            dataset[i * self.n_notes_per_song : (i + 1) * self.n_notes_per_song] = (
+                pianoroll[indices]
+            )
+
+        # Number of zero vectors
+        n_zeros = np.sum(np.all(dataset == 0, axis=1))
+        print(f"Number of zero examples: {n_zeros}")
+
+        return dataset
+
+    def __len__(self):
+        return len(self.dataset)
+
+    def __getitem__(self, idx: int) -> tuple[torch.Tensor, torch.Tensor]:
+        return torch.tensor(self.dataset[idx], dtype=torch.double), torch.tensor(
+            self.dataset[idx], dtype=torch.double
+        )

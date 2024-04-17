@@ -72,7 +72,8 @@ class PianorollGanCNNDataset(BasePianorollDataset):
                 pianoroll[i * self.n_notes : (i + 1) * self.n_notes] for i in range(n)
             )
 
-            dataset.extend(zip(track[1:], track))
+            # Group the current and previous bar (real, prev)
+            dataset.extend(map(np.array, zip(track[1:], track)))
 
         return dataset
 
@@ -80,6 +81,6 @@ class PianorollGanCNNDataset(BasePianorollDataset):
         return len(self.dataset)
 
     def __getitem__(self, idx: int) -> tuple[torch.Tensor, torch.Tensor]:
-        return torch.tensor(self.dataset[idx][0], dtype=torch.float32), torch.tensor(
+        return torch.tensor(self.dataset[idx][0][0], dtype=torch.float32), torch.tensor(
             self.dataset[idx][1], dtype=torch.float32
         )

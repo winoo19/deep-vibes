@@ -152,7 +152,34 @@ class PositionalEncoding(torch.nn.Module):
         return x + self.pe[:, :, : x.size(2)]
 
 
-class Decoder(torch.autograd.Function):
+class Sigmoid(torch.nn.Module):
+    """
+    Custom sigmoid class to apply temperature scaling.
+    """
+
+    def __init__(self, t: float = 1.0, s: float = 1.0) -> None:
+        """
+        Constructor of the Sigmoid class.
+
+        Args:
+            t (float): Sigmoid temperature parameter.
+            s (float): Sigmoid scaling parameter.
+        """
+        super().__init__()
+
+        self.t = t
+        self.s = s
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        Compute the forward pass of the sigmoid layer, following the formula:
+        sigmoid(x) = s / (1 + exp(-x / t))
+
+        """
+        return self.s / (1 + torch.exp(-x / self.t))
+
+
+class DecoderBlock(torch.autograd.Function):
     """
     Class for the Transformer model.
     """
@@ -222,6 +249,10 @@ class Decoder(torch.autograd.Function):
 
 
 class MyModel(torch.nn.Module):
+    """
+    Class for the custom Transformer model.
+    """
+
     def __init__(
         self,
         pitch_dim: int,
@@ -230,13 +261,16 @@ class MyModel(torch.nn.Module):
         num_layers: int,
         ctx_size: int = 160,
     ):
+        """
+        Constructor of the MyModel class.
+        """
         super().__init__()
         self.positional_encoding: PositionalEncoding = PositionalEncoding(
             pitch_dim=pitch_dim, max_len=100
         )
         self.layers = torch.nn.Sequential(
             [
-                Decoder(
+                DecoderBlock(
                     pitch_dim=pitch_dim,
                     num_heads=num_heads,
                     hidden_dim=hidden_dim,
@@ -246,8 +280,30 @@ class MyModel(torch.nn.Module):
             ]
         )
 
-        self.linear_out = torch.nn.Linear(pitch_dim, 1)
-        # self.sigmoid = torch.nn.Sigmoid()
+        # self.linear_out = torch.nn.Linear(pitch_dim, 1)
+        self.sigmoid = Sigmoid(t=2.0)
 
-    def forward(self, x):
-        pass
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        Compute the forward pass of the model.
+
+        Args:
+            x (torch.Tensor): Input tensor [batch, ctx_size, pitch_dim].
+
+        Returns:
+            torch.Tensor: Output tensor [batch, ctx_size, pitch_dim].
+        """
+
+        # Apply the positional encoding
+        x = self.positional_encoding(x)
+
+        # Apply the layers
+        x = self.layers(x)
+
+        # Apply the linear layer
+        x = self.linear_out(x)
+
+        # Apply the sigmoid layer
+        # x = self.sigmoid(x)
+
+        return x

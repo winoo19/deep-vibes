@@ -14,8 +14,9 @@ def parameters_to_double(model: torch.nn.Module) -> None:
         model: pytorch model.
     """
 
-    for param in model.parameters():
-        param.data = param.data.double()
+    model.double()
+
+    return None
 
 
 def save_model(model: torch.nn.Module, name: str, folder: str = "models") -> None:

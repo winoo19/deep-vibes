@@ -112,7 +112,8 @@ def pianoroll2matrix(pianoroll: np.ndarray) -> np.ndarray:
     piano_roll_cropped = pianoroll[21:109].T
 
     # Normalize the velocity values
-    piano_roll_normalized = piano_roll_cropped / 128
+    piano_roll_clipped = np.clip(piano_roll_cropped, 0, 128)
+    piano_roll_normalized = piano_roll_clipped / 128
 
     return piano_roll_normalized.astype(np.float32)
 

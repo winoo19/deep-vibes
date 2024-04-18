@@ -48,6 +48,51 @@ class PianorollDataset(BasePianorollDataset):
         return torch.tensor(self.dataset[idx], dtype=torch.float32)
 
 
+class PianorollDiskDataset(BasePianorollDataset):
+    """
+    Piano roll dataset loaded into a single numpy array.
+    """
+
+    def __init__(self, data_path: str, n_notes: int = 16):
+        super().__init__(data_path, n_notes)
+        self.index_to_file_and_idx = self.get_index_to_file_and_idx()
+
+    def get_index_to_file_and_idx(self) -> list[tuple[str, int]]:
+        index_to_file_and_idx: list[tuple[str, int]] = []
+
+        for file_path in tqdm(os.listdir(self.data_path), desc="Indexing dataset"):
+            # pianoroll: np.ndarray = np.load(os.path.join(self.data_path, file_path))
+            # n = pianoroll.shape[0] // self.n_notes
+
+            # Read shape of npy without loading it using mmap_mode
+            with open(os.path.join(self.data_path, file_path), "rb") as f:
+                major, minor = np.lib.format.read_magic(f)
+                shape, _, _ = np.lib.format.read_array_header_1_0(f)
+                n = shape[0] // self.n_notes
+
+            index_to_file_and_idx.extend((file_path, i) for i in range(n))
+
+        return index_to_file_and_idx
+
+    def __len__(self):
+        return len(self.index_to_file_and_idx)
+
+    def __getitem__(self, idx):
+        file_path, i = self.index_to_file_and_idx[idx]
+        pianoroll: np.ndarray = np.load(os.path.join(self.data_path, file_path))
+
+        return (
+            torch.tensor(
+                pianoroll[i * self.n_notes : (i + 1) * self.n_notes],
+                dtype=torch.double,
+            ),
+            torch.tensor(
+                pianoroll[i * self.n_notes : (i + 1) * self.n_notes],
+                dtype=torch.double,
+            ),
+        )
+
+
 class PianorollGanCNNDataset(BasePianorollDataset):
     """
     Dataset class for the MAESTRO dataset for the CNN Gan model.

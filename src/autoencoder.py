@@ -13,7 +13,6 @@ from datetime import datetime, timedelta
 
 device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
 set_seed(42)
-torch.set_num_threads(8)
 
 
 class Sigmoid(torch.nn.Module):

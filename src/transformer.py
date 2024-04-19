@@ -59,11 +59,14 @@ class MaskedMultiHeadAttention(torch.nn.Module):
         self.W_k = torch.nn.Linear(pitch_dim, pitch_dim)
         self.W_v = torch.nn.Linear(pitch_dim, pitch_dim)
 
+        # self.lookahead_mask: torch.Tensor = torch.triu(
+        #     torch.ones(ctx_size, ctx_size) * float("-inf"), diagonal=1
+        # ).to(torch.device("cuda"))
         self.lookahead_mask: torch.Tensor = torch.triu(
             torch.ones(ctx_size, ctx_size) * float("-inf"), diagonal=1
-        )
+        ).to(torch.device("cpu"))
 
-    def forward(self, x: torch.Tensor, seq_length: int) -> torch.Tensor:
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
         Compute the forward pass of the multi-head attention layer.
 
@@ -73,6 +76,51 @@ class MaskedMultiHeadAttention(torch.nn.Module):
 
         Returns:
             torch.Tensor: Output tensor. [batch, ctx_size, pitch_dim].
+        """
+        # Split inputs
+        # Q, K, V: [batch, sequence, pitch_dim]
+        q: torch.Tensor = self.W_q(x)
+        k: torch.Tensor = self.W_k(x)
+        v: torch.Tensor = self.W_v(x)
+
+        # split heads -> [batch, num_heads, sequence, query_dim]
+        q = q.view(x.size(0), -1, self.num_heads, self.pitch_dim // self.num_heads)
+        q = q.transpose(1, 2)
+        k = k.view(x.size(0), -1, self.num_heads, self.pitch_dim // self.num_heads)
+        k = k.transpose(1, 2)
+        v = v.view(x.size(0), -1, self.num_heads, self.pitch_dim // self.num_heads)
+        v = v.transpose(1, 2)
+
+        # attention: [batch, num_heads, sequence, sequence]
+        attention: torch.Tensor = torch.matmul(q, k.transpose(-2, -1)) / (
+            self.pitch_dim**0.5
+        )
+
+        attention.to(x.device)
+
+        # Apply mask. If training, apply lookahead mask, else apply padding mask
+        attention = attention + self.lookahead_mask
+
+        # softmax: [batch, num_heads, sequence, sequence]
+        attention = F.softmax(attention, dim=-1)
+
+        # output: [batch, num_heads, sequence, query_dim]
+        output = torch.matmul(attention, v)
+
+        # merge heads -> [batch, sequence, pitch_dim]
+        output = output.transpose(1, 2).contiguous().view(x.size(0), -1, self.pitch_dim)
+        return output
+
+    def inference(self, x: torch.Tensor, seq_length: int) -> torch.Tensor:
+        """
+        Method that infers a new sequence from the input tensor.
+
+        Args:
+            x (torch.Tensor): Input tensor [batch, ctx_size, pitch_dim].
+            seq_length (int): Sequence length.
+
+        Returns:
+            torch.Tensor: Output tensor [batch, ctx_size, pitch_dim].
         """
         # Q, K, V: [batch, sequence, pitch_dim]
         q: torch.Tensor = self.W_q(x)
@@ -92,11 +140,10 @@ class MaskedMultiHeadAttention(torch.nn.Module):
             self.pitch_dim**0.5
         )
 
+        attention.to(x.device)
+
         # Apply mask. If training, apply lookahead mask, else apply padding mask
-        if self.training:
-            attention = attention + self.lookahead_mask
-        else:
-            attention[:, :, :, :seq_length] = float("-inf")
+        attention[:, :, :, seq_length:] = float("-inf")
 
         # softmax: [batch, num_heads, sequence, sequence]
         attention = F.softmax(attention, dim=-1)
@@ -136,7 +183,8 @@ class PositionalEncoding(torch.nn.Module):
         )
         pe[:, 0::2] = torch.sin(position * div_term)
         pe[:, 1::2] = torch.cos(position * div_term)
-        pe = pe.transpose(0, 1).unsqueeze(0)
+        pe = pe.unsqueeze(0)
+
         self.register_buffer("pe", pe)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -149,7 +197,32 @@ class PositionalEncoding(torch.nn.Module):
         Returns:
             torch.Tensor: Output tensor. [batch, ctx_size, pitch_dim].
         """
-        return x + self.pe[:, :, : x.size(2)]
+        return x + self.pe
+
+
+class CustomBCELoss(torch.nn.Module):
+    """
+    Custom binary cross-entropy loss function.
+    """
+
+    def __init__(self, loss: torch.nn.Module) -> None:
+        super(CustomBCELoss, self).__init__()
+        self.loss = loss
+
+    def forward(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+        """
+        Compute the forward pass of the BCE loss function.
+
+        Args:
+            x (torch.Tensor): Output tensor. [batch, ctx_size, pitch_dim].
+            y (torch.Tensor): Target tensor. [batch, ctx_size, pitch_dim].
+
+        Returns:
+            torch.Tensor: Loss value.
+        """
+        # Compare element i of x with element i+1 of y
+        assert x.shape == y.shape
+        return self.loss(x[:, :-1], y[:, 1:])
 
 
 class Sigmoid(torch.nn.Module):
@@ -179,7 +252,7 @@ class Sigmoid(torch.nn.Module):
         return self.s / (1 + torch.exp(-x / self.t))
 
 
-class DecoderBlock(torch.autograd.Function):
+class DecoderBlock(torch.nn.Module):
     """
     Class for the Transformer model.
     """
@@ -189,7 +262,7 @@ class DecoderBlock(torch.autograd.Function):
         pitch_dim: int,
         num_heads: int,
         hidden_dim: int,
-        ctx_size: int = 160,
+        ctx_size: int,
     ):
         """
         Constructor of the Decoder class.
@@ -208,7 +281,7 @@ class DecoderBlock(torch.autograd.Function):
         self.ctx_size = ctx_size
 
         self.masked_multi_head_attention: MaskedMultiHeadAttention = (
-            MaskedMultiHeadAttention(pitch_dim, num_heads, ctx_size=self.ctx_size),
+            MaskedMultiHeadAttention(pitch_dim, num_heads, ctx_size=self.ctx_size)
         )
         self.layer_norm: torch.nn.LayerNorm = torch.nn.LayerNorm(pitch_dim)
         self.fc: FeedForward = FeedForward(pitch_dim, hidden_dim)
@@ -223,12 +296,50 @@ class DecoderBlock(torch.autograd.Function):
         Returns:
             torch.Tensor: Output tensor [batch, ctx_size, pitch_dim].
         """
+        # if not seq_length:
+        #     seq_length = self.pitch_dim
+
+        # Apply LayerNorm
+        output: torch.Tensor = self.layer_norm(x)
+
+        # Apply the multi-head attention layers
+        output = self.masked_multi_head_attention(output)
+
+        # Add the inputs
+        output = output + x
+
+        # Save the inputs for later
+        inputs = output
 
         # Apply LayerNorm
         output = self.layer_norm(output)
 
+        # Apply the feed-forward layer
+        output = self.fc(output)
+
+        # Add the inputs
+        output = output + inputs
+
+        return output
+
+    def inference(self, x: torch.Tensor, seq_length: int) -> torch.Tensor:
+        """
+        Computes the forward pass of the decoder.
+
+        Args:
+            x (torch.Tensor): Input tensor [batch, ctx_size, pitch_dim].
+
+        Returns:
+            torch.Tensor: Output tensor [batch, ctx_size, pitch_dim].
+        """
+        # if not seq_length:
+        #     seq_length = self.pitch_dim
+
+        # Apply LayerNorm
+        output: torch.Tensor = self.layer_norm(x)
+
         # Apply the multi-head attention layers
-        output = self.masked_multi_head_attention(output, self.ctx_size)
+        output = self.masked_multi_head_attention.inference(output, seq_length)
 
         # Add the inputs
         output = output + x
@@ -248,7 +359,7 @@ class DecoderBlock(torch.autograd.Function):
         return output
 
 
-class MyModel(torch.nn.Module):
+class TransformerDecoder(torch.nn.Module):
     """
     Class for the custom Transformer model.
     """
@@ -259,24 +370,30 @@ class MyModel(torch.nn.Module):
         num_heads: int,
         hidden_dim: int,
         num_layers: int,
-        ctx_size: int = 160,
+        ctx_size: int,
     ):
         """
-        Constructor of the MyModel class.
+        Constructor of the TransformerDecoder class.
         """
         super().__init__()
+        self.pitch_dim = pitch_dim
+        self.num_heads = num_heads
+        self.hidden_dim = hidden_dim
+        self.num_layers = num_layers
+        self.ctx_size = ctx_size
+
         self.positional_encoding: PositionalEncoding = PositionalEncoding(
-            pitch_dim=pitch_dim, max_len=100
+            pitch_dim=self.pitch_dim, max_len=self.ctx_size
         )
-        self.layers = torch.nn.Sequential(
+        self.layers = torch.nn.ModuleList(
             [
                 DecoderBlock(
-                    pitch_dim=pitch_dim,
-                    num_heads=num_heads,
-                    hidden_dim=hidden_dim,
-                    ctx_size=ctx_size,
+                    pitch_dim=self.pitch_dim,
+                    num_heads=self.num_heads,
+                    hidden_dim=self.hidden_dim,
+                    ctx_size=self.ctx_size,
                 )
-                for _ in range(num_layers)
+                for _ in range(self.num_layers)
             ]
         )
 
@@ -293,17 +410,44 @@ class MyModel(torch.nn.Module):
         Returns:
             torch.Tensor: Output tensor [batch, ctx_size, pitch_dim].
         """
+        # if not seq_length:
+        #     seq_length = self.pitch_dim
 
         # Apply the positional encoding
         x = self.positional_encoding(x)
 
         # Apply the layers
-        x = self.layers(x)
-
-        # Apply the linear layer
-        x = self.linear_out(x)
+        for layer in self.layers:
+            x = layer(x)
 
         # Apply the sigmoid layer
-        # x = self.sigmoid(x)
+        x = self.sigmoid(x)
+
+        return x
+
+    def inference(self, x: torch.Tensor = None, seq_length: int = None) -> torch.Tensor:
+        """
+        Predict the output of the model.
+
+        Args:
+            x (torch.Tensor): Input tensor [batch, ctx_size, pitch_dim].
+
+        Returns:
+            torch.Tensor: Output tensor [batch, ctx_size, pitch_dim].
+        """
+        if x is None:
+            # x = torch.zeros(1, self.ctx_size, self.pitch_dim).to(torch.device("cuda"))
+            x = torch.zeros(1, self.ctx_size, self.pitch_dim).to(torch.device("cpu"))
+
+        if seq_length is None:
+            seq_length = 0
+
+        x = self.positional_encoding(x)
+
+        for layer in self.layers:
+            x = layer.inference(x, seq_length)
+
+        # Apply the sigmoid layer
+        x = self.sigmoid(x, seq_length)
 
         return x

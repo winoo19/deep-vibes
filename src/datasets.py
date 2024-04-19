@@ -45,7 +45,9 @@ class PianorollDataset(BasePianorollDataset):
         return len(self.dataset)
 
     def __getitem__(self, idx):
-        return torch.tensor(self.dataset[idx], dtype=torch.float32)
+        return torch.tensor(self.dataset[idx], dtype=torch.double), torch.tensor(
+            self.dataset[idx], dtype=torch.double
+        )
 
 
 class PianorollDiskDataset(BasePianorollDataset):
@@ -61,9 +63,6 @@ class PianorollDiskDataset(BasePianorollDataset):
         index_to_file_and_idx: list[tuple[str, int]] = []
 
         for file_path in tqdm(os.listdir(self.data_path), desc="Indexing dataset"):
-            # pianoroll: np.ndarray = np.load(os.path.join(self.data_path, file_path))
-            # n = pianoroll.shape[0] // self.n_notes
-
             # Read shape of npy without loading it using mmap_mode
             with open(os.path.join(self.data_path, file_path), "rb") as f:
                 major, minor = np.lib.format.read_magic(f)

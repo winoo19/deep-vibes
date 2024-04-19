@@ -7,10 +7,11 @@ from tqdm import tqdm
 from src.data import DATA_PATH
 from src.train_functions import train_loop
 from src.utils import set_seed, save_model, parameters_to_double, load_model
-from src.datasets import PianorollDiskDataset
+from src.datasets import PianorollDataset
 
 from typing import TypedDict
 from datetime import datetime, timedelta
+import cProfile
 
 device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
 # device = torch.device("cpu")
@@ -50,13 +51,16 @@ class VAE(torch.nn.Module):
         embed_size: int,
         encoder_hidden_size: int,
         decoder_hidden_size: int,
+        encoder_layers: int = 1,
+        decoder_layers: int = 1,
+        temperature: float = 1.0,
     ):
         super().__init__()
         # Encoder
         self.encoder = torch.nn.GRU(
             input_size=input_size,
             hidden_size=encoder_hidden_size,
-            num_layers=1,
+            num_layers=encoder_layers,
             batch_first=True,
         )
         self.mean_linear = torch.nn.Linear(encoder_hidden_size, embed_size)
@@ -66,11 +70,11 @@ class VAE(torch.nn.Module):
         self.decoder = torch.nn.GRU(
             input_size=embed_size,
             hidden_size=decoder_hidden_size,
-            num_layers=1,
+            num_layers=decoder_layers,
             batch_first=True,
         )
         self.output_linear = torch.nn.Linear(decoder_hidden_size, input_size)
-        self.sigmoid = Sigmoid()
+        self.sigmoid = Sigmoid(temperature=temperature, trainable=False)
 
         self.input_size = input_size
         self.embed_size = embed_size
@@ -147,7 +151,7 @@ class VAE(torch.nn.Module):
 class VAELoss(torch.nn.Module):
     def __init__(self, gamma: float = 1e-3):
         super(VAELoss, self).__init__()
-        self.bce_loss = torch.nn.BCELoss(reduction="sum")
+        self.bce_loss = torch.nn.BCELoss(reduction="mean")
         self.gamma = gamma
 
     def forward(self, x: tuple[torch.Tensor], y: torch.Tensor) -> torch.Tensor:
@@ -185,14 +189,17 @@ def main() -> None:
     hyperparams: HyperParams = {
         "epochs": 500,
         "patience": 10,
-        "lr": 8e-4,
+        "lr": 1e-3,
         "lr_step_size": 5,
         "lr_gamma": 0.2,
-        "weight_decay": 3e-3,
-        "batch_size": 128,
+        "weight_decay": 1e-4,
+        "batch_size": 256,
+        "embed_size": 128,
         "encoder_hidden_size": 512,
         "decoder_hidden_size": 512,
-        "embed_size": 16,
+        "encoder_layers": 1,
+        "decoder_layers": 1,
+        "temperature": 2.0,
         "balancing_gamma": 1e-3,
     }
 
@@ -200,7 +207,7 @@ def main() -> None:
     open("nohup.out", "w").close()
 
     # load data
-    pitch_dataset = PianorollDiskDataset(DATA_PATH, n_notes=16 * 5)
+    pitch_dataset = PianorollDataset(DATA_PATH, n_notes=16 * 5)
     print(f"Data loaded. Number of samples: {len(pitch_dataset)}")
 
     # split train and validation
@@ -242,6 +249,9 @@ def main() -> None:
         embed_size=hyperparams["embed_size"],
         encoder_hidden_size=hyperparams["encoder_hidden_size"],
         decoder_hidden_size=hyperparams["decoder_hidden_size"],
+        encoder_layers=hyperparams["encoder_layers"],
+        decoder_layers=hyperparams["decoder_layers"],
+        temperature=hyperparams["temperature"],
     ).to(device)
     parameters_to_double(model)
 
@@ -299,7 +309,7 @@ def validate() -> None:
     model_state_dict = load_model("model_val_loss_93738.182").state_dict()
 
     # load data
-    pitch_dataset = PianorollDiskDataset(DATA_PATH, n_notes=16 * 5)
+    pitch_dataset = PianorollDataset(DATA_PATH, n_notes=16 * 5)
     print(f"Data loaded. Number of samples: {len(pitch_dataset)}")
 
     # split train and validation
@@ -384,5 +394,13 @@ def test():
 
 if __name__ == "__main__":
     # main()
-    validate()
+    # validate()
     # test()
+
+    cProfile.run("main()", "profile2")
+
+    import pstats
+    from pstats import SortKey
+
+    p = pstats.Stats("profile2")
+    p.strip_dirs().sort_stats(SortKey.TIME).print_stats(50)

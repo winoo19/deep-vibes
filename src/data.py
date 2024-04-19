@@ -205,18 +205,19 @@ def load_data(
     return data_loader
 
 
-if __name__ == "__main__":
-    # download_data()
-    # setup_data()
-    # explore_data()
+def main():
+    """
+    This method runs the data pipeline.
+    """
+
+    # Setup the data
+    setup_data()
+
+    # Transform the data
     transform_data()
-    print("Nº songs:", len(os.listdir("data/npy")))
 
-    # dataset = PianorollDataset
-    # data_loader = load_data(dataset)
-    # print(len(data_loader))
+    print(f"Succesfully transformed {len(os.listdir(DATA_PATH))} files!")
 
-    # dataset = PianorollGanCNNDataset
-    # data_loader = load_data(dataset)
-    # print(len(data_loader))
-    # input("Press Enter to continue...")
+
+if __name__ == "__main__":
+    main()

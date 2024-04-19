@@ -11,6 +11,7 @@ from src.utils import save_model
 from tqdm import tqdm
 
 device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
+# device = torch.device("cpu")
 
 
 def train_loop(

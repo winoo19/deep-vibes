@@ -163,12 +163,18 @@ def transform_data() -> None:
     ]
 
     pbar = tqdm(valid_paths, desc="Transforming data")
-    for i, file in enumerate(pbar):
+    index = 0
+    for file in pbar:
         pianoroll = midi2pianoroll(os.path.join(midi_path, file), fs=FS)
         matrix = pianoroll2matrix(pianoroll)
         matrix = trim_silence(matrix)
 
-        np.save(os.path.join(npy_path, f"pianoroll_{i}.npy"), matrix)
+        # Avoid empty pianorolls
+        if matrix.shape[0] <= 0:
+            continue
+
+        np.save(os.path.join(npy_path, f"pianoroll_{index}.npy"), matrix)
+        index += 1
 
     print("Data successfully transformed!")
 

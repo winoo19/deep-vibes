@@ -16,6 +16,7 @@ checkpoints/
 generated/
 pruebas.py
 prueba.py
+pruebas/
 
 
 # Byte-compiled / optimized / DLL files

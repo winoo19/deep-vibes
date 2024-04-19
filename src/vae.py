@@ -148,6 +148,117 @@ class VAE(torch.nn.Module):
         return x_hat
 
 
+class CNNVAE(torch.nn.Module):
+    """
+    Autoencoder model.
+
+    Args:
+        n_notes (int): Number of notes in the pianoroll.
+        n_features (int): Number of features in the pianoroll.
+        embed_size (int): Size of the embedding.
+    """
+
+    def __init__(
+        self,
+        n_notes: int,
+        n_features: int,
+        embed_size: int,
+        temperature: float = 1.0,
+    ):
+        super().__init__()
+        # Encoder
+        self.encoder = torch.nn.Sequential(
+            torch.nn.Conv2d(1, 16, kernel_size=3, stride=2, padding=1),
+            torch.nn.LeakyReLU(),
+            torch.nn.Conv2d(16, 32, kernel_size=3, stride=2, padding=1),
+            torch.nn.LeakyReLU(),
+            torch.nn.Conv2d(32, 64, kernel_size=3, stride=2, padding=1),
+            torch.nn.LeakyReLU(),
+        )  # [batch_size, 64, 10, 11]
+        dummy_input = torch.randn(1, 1, n_notes, n_features)
+        dummy_output = self.encoder(dummy_input)
+        self.encoder_output_shape = dummy_output.shape
+        encoder_output_size = dummy_output.view(1, -1).shape[1]
+        print(self.encoder(dummy_input).shape)
+
+        self.mean_linear = torch.nn.Linear(encoder_output_size, embed_size)
+        self.logvar_linear = torch.nn.Linear(encoder_output_size, embed_size)
+
+        self.upsample_linear = torch.nn.Linear(embed_size, encoder_output_size)
+
+        # Decoder
+        self.decoder = torch.nn.Sequential(
+            torch.nn.LeakyReLU(),
+            torch.nn.ConvTranspose2d(
+                64, 32, kernel_size=3, stride=2, padding=1, output_padding=1
+            ),
+            torch.nn.LeakyReLU(),
+            torch.nn.ConvTranspose2d(
+                32, 16, kernel_size=3, stride=2, padding=1, output_padding=1
+            ),
+            torch.nn.LeakyReLU(),
+            torch.nn.ConvTranspose2d(
+                16, 1, kernel_size=3, stride=2, padding=1, output_padding=1
+            ),
+            Sigmoid(temperature=temperature, trainable=False),
+        )
+        dummy_input = torch.randn(1, encoder_output_size).view(1, 64, 10, 11)
+        print(self.decoder(dummy_input).shape)
+
+        self.n_notes = n_notes
+        self.n_features = n_features
+        self.embed_size = embed_size
+
+    def forward(
+        self, x: torch.Tensor
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+        """
+        Forward pass of the model.
+
+        Args:
+            x (torch.Tensor): Input tensor. Dimensions: [batch_size, n_notes, 88]
+
+        Returns:
+            tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+                Tuple with the output, mean, std and logvar tensors.
+        """
+        # Encode
+        x = x.unsqueeze(1)  # Add channel dimension
+        h1 = self.encoder(x)  # [batch_size, 64, 10, 11]
+        h1 = h1.view(h1.size(0), -1)  # [batch_size, 64 * 10 * 11]
+        mean = self.mean_linear(h1)  # [batch_size, embed_size]
+        logvar = self.logvar_linear(h1)  # [batch_size, embed_size]
+
+        # Reparametrization trick
+        std = torch.exp(0.5 * logvar)
+        z = mean + std * torch.randn_like(std)  # [batch_size, embed_size]
+
+        # Decode
+        z_up = self.upsample_linear(z).view(
+            -1, *self.encoder_output_shape[1:]
+        )  # [batch_size, 64, 10, 11]
+
+        x_hat = self.decoder(z_up)  # [batch_size, 1, n_notes, n_features]
+        x_hat = x_hat.squeeze(1)  # [batch_size, n_notes, n_features]
+
+        return x_hat, mean, std, logvar
+
+    def generate(self) -> torch.Tensor:
+        """
+        Decode the latent vector.
+
+        Args:
+            z (torch.Tensor): Latent vector.
+        """
+        z = torch.randn(1, self.embed_size).to(device)
+        z_up = self.upsample_linear(z).view(
+            -1, *self.encoder_output_shape[1:]
+        )  # [batch_size, 64, 10, 11]
+        x_hat = self.decoder(z_up)  # [batch_size, 1, n_notes, n_features]
+        x_hat = x_hat.squeeze(1)  # [batch_size, n_notes, n_features]
+        return x_hat
+
+
 class VAELoss(torch.nn.Module):
     def __init__(self, gamma: float = 1e-3):
         super(VAELoss, self).__init__()
@@ -397,10 +508,15 @@ if __name__ == "__main__":
     # validate()
     # test()
 
-    cProfile.run("main()", "profile2")
+    cnn_vae = CNNVAE(16 * 5, 88, 50)
 
-    import pstats
-    from pstats import SortKey
+    x = torch.randn(1, 16 * 5, 88)  # [batch_size, n_notes, 88]
+    y = cnn_vae(x)
 
-    p = pstats.Stats("profile2")
-    p.strip_dirs().sort_stats(SortKey.TIME).print_stats(50)
+    # cProfile.run("main()", "profile2")
+
+    # import pstats
+    # from pstats import SortKey
+
+    # p = pstats.Stats("profile2")
+    # p.strip_dirs().sort_stats(SortKey.TIME).print_stats(50)

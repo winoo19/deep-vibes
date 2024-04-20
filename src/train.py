@@ -38,11 +38,16 @@ Ideas:
 
 
 def main():
+    os.makedirs("checkpoints", exist_ok=True)
+    os.makedirs("generated", exist_ok=True)
     run = (
         max(
-            int(file.split("_")[2])
-            for file in os.listdir("generated")
-            if "gan_cnn" in file
+            (
+                int(file.split("_")[2])
+                for file in os.listdir("generated")
+                if "gan_cnn" in file
+            ),
+            default=-1,
         )
         + 1
     )
@@ -56,20 +61,24 @@ def main():
     z_dim: int = 100
 
     temperature: float = 1.0
+    dropout = 0.5
+    cutoff = 0.0
 
-    epochs: int = 20
+    epochs: int = 30
 
-    lr_g: float = 0.0002
+    lr_g: float = 0.00025
     lr_d: float = 0.0002
 
-    l_1: float = 0.1
+    l_1: float = 0.2
     l_2: float = 1.0
 
     dataloader = load_data(
         PianorollGanCNNDataset, n_notes=n_notes, batch_size=batch_size
     )
 
-    discriminator = Discriminator(pitch_dim=pitch_dim, bar_length=n_notes).to(device)
+    discriminator = Discriminator(
+        pitch_dim=pitch_dim, bar_length=n_notes, dropout=dropout
+    ).to(device)
     generator = Generator(
         pitch_dim=pitch_dim,
         forward_dim=forward_dim,
@@ -77,6 +86,7 @@ def main():
         z_dim=z_dim,
         bar_length=n_notes,
         temperature=temperature,
+        cutoff=cutoff,
     ).to(device)
 
     print(discriminator)
@@ -211,6 +221,12 @@ def main():
         },
         f"checkpoints/gan_cnn_{run}_{epoch}.pt",
     )
+    # generate samples and save them
+    generator.eval()
+    with torch.no_grad():
+        fake = generator(pred_noise, prev)
+        np.save(f"generated/gan_cnn_{run}_{epoch}_fake.npy", fake.cpu().numpy())
+        np.save(f"generated/gan_cnn_{run}_{epoch}_real.npy", real.cpu().numpy())
 
 
 if __name__ == "__main__":

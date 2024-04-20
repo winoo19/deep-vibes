@@ -10,24 +10,57 @@ from src.utils import set_seed
 
 # Other libraries
 import numpy as np
+import os
+from tqdm import tqdm
 
 
 device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
 set_seed(42)
 
-torch.autograd.set_detect_anomaly(False)
+torch.autograd.set_detect_anomaly(True)
+
+
+"""
+Ideas:
+    change batch norm for layer norm
+    make the discriminator worse
+    explore GAN training techniques
+        x one-sided label smoothing
+        x feature matching
+        - hpp tuning (more batch size, etc)
+        x initialization
+        - minibatch discrimination
+        - Virtual batch normalization
+        - Spectral normalization
+        - Not train the generator twice
+        - Try different cost functions, such as WGAN (check if use bn when changing cost function)
+"""
 
 
 def main():
-    batch_size: int = 64
-    n_notes: int = 16
+    run = (
+        max(
+            int(file.split("_")[2])
+            for file in os.listdir("generated")
+            if "gan_cnn" in file
+        )
+        + 1
+    )
+    print(f"Run: {run}")
+
+    batch_size: int = 128
+    n_notes: int = 64
     pitch_dim: int = 88
-    cond_dim: int = 16
+    forward_dim: int = 256
+    cond_dim: int = 256
     z_dim: int = 100
+
+    temperature: float = 1.0
 
     epochs: int = 20
 
-    lr: float = 0.0002
+    lr_g: float = 0.0002
+    lr_d: float = 0.0002
 
     l_1: float = 0.1
     l_2: float = 1.0
@@ -36,10 +69,15 @@ def main():
         PianorollGanCNNDataset, n_notes=n_notes, batch_size=batch_size
     )
 
-    discriminator = Discriminator(pitch_dim=pitch_dim).to(device)
-    generator = Generator(pitch_dim=pitch_dim, cond_dim=cond_dim, z_dim=z_dim).to(
-        device
-    )
+    discriminator = Discriminator(pitch_dim=pitch_dim, bar_length=n_notes).to(device)
+    generator = Generator(
+        pitch_dim=pitch_dim,
+        forward_dim=forward_dim,
+        cond_dim=cond_dim,
+        z_dim=z_dim,
+        bar_length=n_notes,
+        temperature=temperature,
+    ).to(device)
 
     print(discriminator)
     print(generator)
@@ -48,17 +86,19 @@ def main():
     feature_criterion = nn.MSELoss()
 
     d_optimizer = torch.optim.Adam(
-        discriminator.parameters(), lr=lr, betas=(0.5, 0.999)
+        discriminator.parameters(), lr=lr_d, betas=(0.5, 0.999)
     )
-    g_optimizer = torch.optim.Adam(generator.parameters(), lr=lr, betas=(0.5, 0.999))
+    g_optimizer = torch.optim.Adam(generator.parameters(), lr=lr_g, betas=(0.5, 0.999))
 
     pred_noise = torch.randn(batch_size, z_dim).to(device)
 
     accuracy_real = 0
     accuracy_fake = 0
+    n_iter = 0
 
     for epoch in range(epochs):
-        for i, (real, prev) in enumerate(dataloader):
+        p_bar = tqdm(dataloader, desc=f"Epoch [{epoch + 1}/{epochs}]")
+        for real, prev in p_bar:
             real = real.to(device)
             prev = prev.to(device)
 
@@ -67,7 +107,8 @@ def main():
 
             d_real, fx_real = discriminator(real)
 
-            d_loss_real = criterion(d_real, torch.ones_like(d_real)).mean()
+            # Add label smoothing
+            d_loss_real = criterion(d_real, 0.9 * torch.ones_like(d_real))
             d_loss_real.backward(retain_graph=False)
 
             accuracy_real += (torch.sigmoid(d_real) > 0.5).float().mean().item()
@@ -78,7 +119,7 @@ def main():
             fake = generator(noise, prev)
             d_fake, fx_fake = discriminator(fake.detach())
 
-            d_loss_fake = criterion(d_fake, torch.zeros_like(d_fake)).mean()
+            d_loss_fake = criterion(d_fake, torch.zeros_like(d_fake))
             d_loss_fake.backward(retain_graph=False)
 
             accuracy_fake += (torch.sigmoid(d_fake) < 0.5).float().mean().item()
@@ -92,12 +133,12 @@ def main():
 
             d_fake, fx_fake = discriminator(fake)
 
-            g_loss = criterion(d_fake, torch.ones_like(d_fake)).mean()
+            g_loss = criterion(d_fake, torch.ones_like(d_fake))
 
-            fx_loss_1 = feature_criterion(real, fake)
+            fx_loss_1 = feature_criterion(real.mean(0), fake.mean(0))
             fx_loss_1 = l_1 * fx_loss_1
 
-            # fx_loss_2 = feature_criterion(fx_fake, fx_real)
+            # fx_loss_2 = feature_criterion(fx_fake.mean(0), fx_real.mean(0))
             # fx_loss_2 = l_2 * fx_loss_2
 
             g_loss = g_loss + fx_loss_1
@@ -105,7 +146,8 @@ def main():
 
             g_optimizer.step()
 
-            # TODO maybe run generator a second time?
+            # Train the generator a second time
+
             g_optimizer.zero_grad()
 
             noise = torch.randn(batch_size, z_dim).to(device)
@@ -113,12 +155,12 @@ def main():
 
             d_fake, fx_fake = discriminator(fake)
 
-            g_loss = criterion(d_fake, torch.ones_like(d_fake)).mean()
+            g_loss = criterion(d_fake, torch.ones_like(d_fake))
 
-            fx_loss_1 = feature_criterion(real, fake)
+            fx_loss_1 = feature_criterion(real.mean(0), fake.mean(0))
             fx_loss_1 = l_1 * fx_loss_1
 
-            # fx_loss_2 = feature_criterion(fx_fake, fx_real)
+            # fx_loss_2 = feature_criterion(fx_fake.mean(0), fx_real.mean(0))
             # fx_loss_2 = l_2 * fx_loss_2
 
             g_loss = g_loss + fx_loss_1
@@ -126,29 +168,46 @@ def main():
 
             g_optimizer.step()
 
-            if i % 100 == 0:
-                print(
-                    f"Epoch [{epoch}/{epochs}], Batch [{i}/{len(dataloader)}], "
-                    f"D Loss: {d_loss.item()}, G Loss: {g_loss.item()}"
-                    f"Accuracy Real: {accuracy_real / 100}, Accuracy Fake: {accuracy_fake / 100}"
-                )
-                accuracy_real = accuracy_fake = 0
+            n_iter += 1
+
+            p_bar.set_postfix(
+                {
+                    "D Loss": d_loss.item(),
+                    "G Loss": g_loss.item(),
+                    "Acc Real": accuracy_real / n_iter,
+                    "Acc Fake": accuracy_fake / n_iter,
+                }
+            )
+
+        accuracy_real = 0
+        accuracy_fake = 0
+        n_iter = 0
 
         # Save the model
         if epoch % 2 == 0:
+            print(f"Saving model at epoch {epoch}")
+
             torch.save(
                 {
                     "discriminator": discriminator.state_dict(),
                     "generator": generator.state_dict(),
                 },
-                f"checkpoints/gan_cnn_{epoch}.pt",
+                f"checkpoints/gan_cnn_{run}_{epoch}.pt",
             )
             # generate samples and save them
             generator.eval()
             with torch.no_grad():
                 fake = generator(pred_noise, prev)
-                np.save(f"generated/gan_cnn_{epoch}.npy", fake.cpu().numpy())
-                np.save(f"generated/gan_cnn_{epoch}_real.npy", real.cpu().numpy())
+                np.save(f"generated/gan_cnn_{run}_{epoch}_fake.npy", fake.cpu().numpy())
+                np.save(f"generated/gan_cnn_{run}_{epoch}_real.npy", real.cpu().numpy())
+
+    torch.save(
+        {
+            "discriminator": discriminator.state_dict(),
+            "generator": generator.state_dict(),
+        },
+        f"checkpoints/gan_cnn_{run}_{epoch}.pt",
+    )
 
 
 if __name__ == "__main__":

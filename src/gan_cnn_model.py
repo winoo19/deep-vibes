@@ -13,22 +13,27 @@ class Discriminator(nn.Module):
         fc (nn.Linear): The fully connected layer.
     """
 
-    def __init__(self, pitch_dim: int = 128) -> None:
+    def __init__(self, pitch_dim: int = 128, bar_length: int = 16) -> None:
         """
         Initializes the Discriminator.
         """
 
         super(Discriminator, self).__init__()
 
-        self.conv1 = nn.Conv2d(1, 14, kernel_size=(2, pitch_dim), stride=2)
-        self.conv2 = nn.Conv2d(14, 77, kernel_size=(4, 1), stride=2)
+        self.pitch_dim: int = pitch_dim
+        self.bar_length: int = bar_length
+
+        self.conv1 = nn.Conv2d(1, 32, kernel_size=(2, self.pitch_dim), stride=2)
+        self.conv2 = nn.Conv2d(32, 77, kernel_size=(4, 1), stride=2)
         self.bn1 = nn.BatchNorm2d(77)
 
-        self.l1 = nn.Linear(231, 1024)
+        self.l1 = nn.Linear((self.bar_length - 4) // 4 * 77, 1024)
         self.bn2 = nn.BatchNorm1d(1024)
         self.l2 = nn.Linear(1024, 1)
 
         self.lrelu = nn.LeakyReLU(0.2)
+
+        self.reset_parameters()
 
     def forward(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         """
@@ -48,7 +53,7 @@ class Discriminator(nn.Module):
 
         x = self.lrelu(self.conv1(x))  # (batch_size, 14, bar_length/2, 1)
 
-        fx = x.clone()
+        fx = x
 
         x = self.lrelu(self.bn1(self.conv2(x)))  # (batch_size, 77, (bar_length-4)/4, 1)
 
@@ -60,6 +65,23 @@ class Discriminator(nn.Module):
 
         return x, fx
 
+    def reset_parameters(self):
+        """
+        Reset the parameters of the discriminator.
+        """
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d):
+                nn.init.normal_(m.weight, 0.0, 0.02)
+            elif isinstance(m, nn.Linear):
+                nn.init.normal_(m.weight, 0.0, 0.02)
+                nn.init.constant_(m.bias, 0)
+            elif isinstance(m, nn.BatchNorm1d):
+                nn.init.normal_(m.weight, 1.0, 0.02)
+                nn.init.constant_(m.bias, 0)
+            elif isinstance(m, nn.BatchNorm2d):
+                nn.init.normal_(m.weight, 1.0, 0.02)
+                nn.init.constant_(m.bias, 0)
+
 
 class Generator(nn.Module):
     """
@@ -69,7 +91,13 @@ class Generator(nn.Module):
     """
 
     def __init__(
-        self, pitch_dim: int = 128, forward_dim: int = 256, cond_dim: int = 256, z_dim: int = 100
+        self,
+        pitch_dim: int = 128,
+        forward_dim: int = 256,
+        cond_dim: int = 256,
+        z_dim: int = 100,
+        bar_length: int = 16,
+        temperature: float = 1.0,
     ) -> None:
         """
         Initializes the Generator.
@@ -82,12 +110,14 @@ class Generator(nn.Module):
         self.cond_dim: int = cond_dim
         self.concat_dim: int = self.forward_dim + self.cond_dim
         self.z_dim: int = z_dim
+        self.bar_length: int = bar_length
+        self.temperature: float = temperature
 
         self.fc1 = nn.Linear(self.z_dim, 1024)
         self.bn1 = nn.BatchNorm1d(1024)
 
-        self.fc2 = nn.Linear(1024, self.forward_dim * 2)
-        self.bn2 = nn.BatchNorm1d(self.forward_dim * 2)
+        self.fc2 = nn.Linear(1024, self.forward_dim * self.bar_length // 8)
+        self.bn2 = nn.BatchNorm1d(self.forward_dim * self.bar_length // 8)
 
         self.bn3 = nn.BatchNorm2d(self.forward_dim)
         self.bn4 = nn.BatchNorm2d(self.forward_dim)
@@ -125,6 +155,8 @@ class Generator(nn.Module):
         self.bn_prev4 = nn.BatchNorm2d(self.cond_dim)
         self.lrelu = nn.LeakyReLU(0.2)
 
+        self.reset_parameters()
+
     def forward(self, z: torch.Tensor, x_prev: torch.Tensor) -> torch.Tensor:
         """
         Forward pass of the generator.
@@ -155,8 +187,8 @@ class Generator(nn.Module):
         z = torch.relu(self.bn1(self.fc1(z)))  # (batch_size, 1024)
         z = torch.relu(self.bn2(self.fc2(z)))  # (batch_size, forward_dim * 2)
         z = z.view(
-            batch_size, self.forward_dim, 2, 1
-        )  # (batch_size, forward_dim, 2, 1)
+            batch_size, self.forward_dim, self.bar_length // 8, 1
+        )  # (batch_size, forward_dim, bar_lenght, 1)
         z = torch.cat((z, prev_4), 1)  # (batch_size, concat_dim, 2, 1)
 
         x = torch.relu(self.bn3(self.deconv1(z)))  # (batch_size, forward_dim, 4, 1)
@@ -168,6 +200,27 @@ class Generator(nn.Module):
         x = torch.relu(self.bn5(self.deconv3(x)))  # (batch_size, forward_dim, 16, 1)
         x = torch.cat((x, prev_1), 1)  # (batch_size, concat_dim, 16, 1)
 
-        x = torch.sigmoid(self.deconv4(x))  # (batch_size, 1, bar_length, pitch_dim)
+        x = torch.sigmoid(
+            self.deconv4(x) / self.temperature
+        )  # (batch_size, 1, bar_length, pitch_dim)
 
         return x.squeeze(1)
+
+    def reset_parameters(self):
+        """
+        Reset the parameters of the generator.
+        """
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d):
+                nn.init.normal_(m.weight, 0.0, 0.02)
+            elif isinstance(m, nn.ConvTranspose2d):
+                nn.init.normal_(m.weight, 0.0, 0.02)
+            elif isinstance(m, nn.Linear):
+                nn.init.normal_(m.weight, 0.0, 0.02)
+                nn.init.constant_(m.bias, 0)
+            elif isinstance(m, nn.BatchNorm1d):
+                nn.init.normal_(m.weight, 1.0, 0.02)
+                nn.init.constant_(m.bias, 0)
+            elif isinstance(m, nn.BatchNorm2d):
+                nn.init.normal_(m.weight, 1.0, 0.02)
+                nn.init.constant_(m.bias, 0)

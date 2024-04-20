@@ -68,7 +68,10 @@ class PianorollGanCNNDataset(BasePianorollDataset):
         """
         dataset: list[tuple[np.ndarray, np.ndarray]] = []
 
-        for file_path in tqdm(os.listdir(self.data_path)):
+        file_paths = os.listdir(self.data_path)
+        n_files = len(file_paths)
+
+        for file_path in tqdm(file_paths[: n_files // 10]):
             pianoroll: np.ndarray = np.load(os.path.join(self.data_path, file_path))
 
             n = pianoroll.shape[0] // self.n_notes

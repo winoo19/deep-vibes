@@ -30,10 +30,12 @@ Ideas:
         x dropout
         -- hpp tuning (more batch size, etc)
         x initialization
+        - .mean(1)
+        - instance noise and reduce dropout
+        - Try different cost functions, such as WGAN (check if use bn when changing cost function)
         - minibatch discrimination
         - Virtual batch normalization
         - Spectral normalization
-        - Try different cost functions, such as WGAN (check if use bn when changing cost function)
 """
 
 
@@ -61,15 +63,15 @@ def main():
     z_dim: int = 100
 
     temperature: float = 1.0
-    dropout = 0.5
+    dropout = 0.2
     cutoff = 0.0
 
     epochs: int = 30
 
-    lr_g: float = 0.00025
+    lr_g: float = 0.0002
     lr_d: float = 0.0002
 
-    l_1: float = 0.2
+    l_1: float = 0.15
     l_2: float = 1.0
 
     dataloader = load_data(
@@ -202,8 +204,22 @@ def main():
 
             torch.save(
                 {
-                    "discriminator": discriminator.state_dict(),
-                    "generator": generator.state_dict(),
+                    "discriminator_params": discriminator.state_dict(),
+                    "generator_params": generator.state_dict(),
+                    "discriminator_optimizer": d_optimizer.state_dict(),
+                    "generator_optimizer": g_optimizer.state_dict(),
+                    "discriminator": Discriminator(
+                        pitch_dim=pitch_dim, bar_length=n_notes, dropout=dropout
+                    ),
+                    "generator": Generator(
+                        pitch_dim=pitch_dim,
+                        forward_dim=forward_dim,
+                        cond_dim=cond_dim,
+                        z_dim=z_dim,
+                        bar_length=n_notes,
+                        temperature=temperature,
+                        cutoff=cutoff,
+                    ),
                 },
                 f"checkpoints/gan_cnn_{run}_{epoch}.pt",
             )

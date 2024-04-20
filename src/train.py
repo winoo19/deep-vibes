@@ -27,12 +27,12 @@ Ideas:
     explore GAN training techniques
         x one-sided label smoothing
         x feature matching
-        - hpp tuning (more batch size, etc)
+        x dropout
+        -- hpp tuning (more batch size, etc)
         x initialization
         - minibatch discrimination
         - Virtual batch normalization
         - Spectral normalization
-        - Not train the generator twice
         - Try different cost functions, such as WGAN (check if use bn when changing cost function)
 """
 
@@ -98,6 +98,9 @@ def main():
 
     for epoch in range(epochs):
         p_bar = tqdm(dataloader, desc=f"Epoch [{epoch + 1}/{epochs}]")
+
+        generator.train()
+        discriminator.train()
         for real, prev in p_bar:
             real = real.to(device)
             prev = prev.to(device)
@@ -105,7 +108,7 @@ def main():
             ### Train the discriminator with real data
             d_optimizer.zero_grad()
 
-            d_real, fx_real = discriminator(real)
+            d_real, _ = discriminator(real)
 
             # Add label smoothing
             d_loss_real = criterion(d_real, 0.9 * torch.ones_like(d_real))
@@ -117,7 +120,7 @@ def main():
             noise = torch.randn(batch_size, z_dim).to(device)
 
             fake = generator(noise, prev)
-            d_fake, fx_fake = discriminator(fake.detach())
+            d_fake, _ = discriminator(fake.detach())
 
             d_loss_fake = criterion(d_fake, torch.zeros_like(d_fake))
             d_loss_fake.backward(retain_graph=False)
@@ -131,7 +134,7 @@ def main():
             ### Train the generator
             g_optimizer.zero_grad()
 
-            d_fake, fx_fake = discriminator(fake)
+            d_fake, _ = discriminator(fake)
 
             g_loss = criterion(d_fake, torch.ones_like(d_fake))
 
@@ -153,7 +156,7 @@ def main():
             noise = torch.randn(batch_size, z_dim).to(device)
             fake = generator(noise, prev)
 
-            d_fake, fx_fake = discriminator(fake)
+            d_fake, _ = discriminator(fake)
 
             g_loss = criterion(d_fake, torch.ones_like(d_fake))
 

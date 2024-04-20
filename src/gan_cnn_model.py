@@ -33,6 +33,8 @@ class Discriminator(nn.Module):
 
         self.lrelu = nn.LeakyReLU(0.2)
 
+        self.dropout = nn.Dropout(0.5)
+
         self.reset_parameters()
 
     def forward(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
@@ -55,7 +57,11 @@ class Discriminator(nn.Module):
 
         fx = x
 
+        x = self.dropout(x)
+
         x = self.lrelu(self.bn1(self.conv2(x)))  # (batch_size, 77, (bar_length-4)/4, 1)
+
+        x = self.dropout(x)
 
         x = x.view(batch_size, -1)  # (batch_size, 231)
 
@@ -92,7 +98,7 @@ class Generator(nn.Module):
 
     def __init__(
         self,
-        pitch_dim: int = 128,
+        pitch_dim: int = 88,
         forward_dim: int = 256,
         cond_dim: int = 256,
         z_dim: int = 100,

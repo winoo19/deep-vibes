@@ -13,7 +13,9 @@ class Discriminator(nn.Module):
         fc (nn.Linear): The fully connected layer.
     """
 
-    def __init__(self, pitch_dim: int = 128, bar_length: int = 16) -> None:
+    def __init__(
+        self, pitch_dim: int = 128, bar_length: int = 16, dropout: float = 0.5
+    ):
         """
         Initializes the Discriminator.
         """
@@ -33,7 +35,7 @@ class Discriminator(nn.Module):
 
         self.lrelu = nn.LeakyReLU(0.2)
 
-        self.dropout = nn.Dropout(0.5)
+        self.dropout = nn.Dropout(dropout)
 
         self.reset_parameters()
 

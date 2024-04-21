@@ -59,8 +59,10 @@ def main():
 
     epochs: int = 20
 
-    lr_g: float = 0.0002
+    lr_g: float = 0.00025
     lr_d: float = 0.0002
+
+    dropout = 0.5
 
     l_1: float = 0.1
     l_2: float = 1.0
@@ -69,7 +71,9 @@ def main():
         PianorollGanCNNDataset, n_notes=n_notes, batch_size=batch_size
     )
 
-    discriminator = Discriminator(pitch_dim=pitch_dim, bar_length=n_notes).to(device)
+    discriminator = Discriminator(
+        pitch_dim=pitch_dim, bar_length=n_notes, dropout=dropout
+    ).to(device)
     generator = Generator(
         pitch_dim=pitch_dim,
         forward_dim=forward_dim,

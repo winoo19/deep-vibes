@@ -221,7 +221,7 @@ def main():
                         cutoff=cutoff,
                     ),
                 },
-                f"checkpoints/gan_cnn_{run}_{epoch}.pt",
+                f"checkpoints/gan_cnn_{run}_{epoch}.pth",
             )
             # generate samples and save them
             generator.eval()
@@ -229,13 +229,28 @@ def main():
                 fake = generator(pred_noise, prev)
                 np.save(f"generated/gan_cnn_{run}_{epoch}_fake.npy", fake.cpu().numpy())
                 np.save(f"generated/gan_cnn_{run}_{epoch}_real.npy", real.cpu().numpy())
+                np.save(f"generated/gan_cnn_{run}_{epoch}_prev.npy", prev.cpu().numpy())
 
     torch.save(
         {
-            "discriminator": discriminator.state_dict(),
-            "generator": generator.state_dict(),
+            "discriminator_params": discriminator.state_dict(),
+            "generator_params": generator.state_dict(),
+            "discriminator_optimizer": d_optimizer.state_dict(),
+            "generator_optimizer": g_optimizer.state_dict(),
+            "discriminator": Discriminator(
+                pitch_dim=pitch_dim, bar_length=n_notes, dropout=dropout
+            ),
+            "generator": Generator(
+                pitch_dim=pitch_dim,
+                forward_dim=forward_dim,
+                cond_dim=cond_dim,
+                z_dim=z_dim,
+                bar_length=n_notes,
+                temperature=temperature,
+                cutoff=cutoff,
+            ),
         },
-        f"checkpoints/gan_cnn_{run}_{epoch}.pt",
+        f"checkpoints/gan_cnn_{run}_{epoch}.pth",
     )
     # generate samples and save them
     generator.eval()
@@ -243,6 +258,7 @@ def main():
         fake = generator(pred_noise, prev)
         np.save(f"generated/gan_cnn_{run}_{epoch}_fake.npy", fake.cpu().numpy())
         np.save(f"generated/gan_cnn_{run}_{epoch}_real.npy", real.cpu().numpy())
+        np.save(f"generated/gan_cnn_{run}_{epoch}_prev.npy", prev.cpu().numpy())
 
 
 if __name__ == "__main__":

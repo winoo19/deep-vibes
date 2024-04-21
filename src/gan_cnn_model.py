@@ -25,7 +25,7 @@ class Discriminator(nn.Module):
         self.pitch_dim: int = pitch_dim
         self.bar_length: int = bar_length
 
-        self.conv1 = nn.Conv2d(1, 32, kernel_size=(2, self.pitch_dim), stride=2)
+        self.conv1 = nn.Conv2d(2, 32, kernel_size=(2, self.pitch_dim), stride=2)
         self.conv2 = nn.Conv2d(32, 77, kernel_size=(4, 1), stride=2)
         self.bn1 = nn.BatchNorm2d(77)
 
@@ -39,7 +39,7 @@ class Discriminator(nn.Module):
 
         self.reset_parameters()
 
-    def forward(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+    def forward(self, x: torch.Tensor, prev: torch.Tensor) -> torch.Tensor:
         """
         Forward pass of the discriminator.
 
@@ -55,9 +55,11 @@ class Discriminator(nn.Module):
 
         x = x.unsqueeze(1)  # (batch_size, 1, bar_length, n_pitches)
 
-        x = self.lrelu(self.conv1(x))  # (batch_size, 14, bar_length/2, 1)
+        x = torch.cat(
+            (x, prev.unsqueeze(1)), 1
+        )  # (batch_size, 2, bar_length, n_pitches)
 
-        fx = x
+        x = self.lrelu(self.conv1(x))  # (batch_size, 14, bar_length/2, 1)
 
         x = self.dropout(x)
 
@@ -71,7 +73,26 @@ class Discriminator(nn.Module):
 
         x = self.l2(x)  # (batch_size, 1)
 
-        return x, fx
+        return x
+
+    def get_feature(self, x: torch.Tensor, prev: torch.Tensor) -> torch.Tensor:
+        """
+        Get the feature tensor of the discriminator.
+
+        Args:
+            x (torch.Tensor): The input tensor. Shape (batch_size, bar_length, n_pitches).
+
+        Returns:
+            torch.Tensor: The feature tensor. Shape (batch_size, 14, bar_length/2, 1).
+        """
+
+        x = x.unsqueeze(1)
+
+        x = torch.cat((x, prev.unsqueeze(1)), 1)
+
+        x = self.lrelu(self.conv1(x))
+
+        return x.view(x.shape[0], -1)
 
     def reset_parameters(self):
         """

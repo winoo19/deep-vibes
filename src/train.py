@@ -30,12 +30,12 @@ Ideas:
         x dropout
         -- hpp tuning (more batch size, etc)
         x initialization
-        - .mean(1)
+        x Try different cost functions, such as WGAN (check if use bn when changing cost function)
         - instance noise and reduce dropout
-        - Try different cost functions, such as WGAN (check if use bn when changing cost function)
         - minibatch discrimination
         - Virtual batch normalization
         - Spectral normalization
+        no .mean(1)
 """
 
 
@@ -63,7 +63,7 @@ def main():
     z_dim: int = 100
 
     temperature: float = 1.0
-    dropout = 0.2
+    dropout = 0.5
     cutoff = 0.0
 
     epochs: int = 30
@@ -71,8 +71,11 @@ def main():
     lr_g: float = 0.00025
     lr_d: float = 0.0002
 
-    l_1: float = 0.15
-    l_2: float = 1.0
+    bar_penalty: float = 0.1
+    feature_penalty: float = 1.0
+    activation_penalty: float = 0.5
+
+    activation = 0.3
 
     dataloader = load_data(
         PianorollGanCNNDataset, n_notes=n_notes, batch_size=batch_size
@@ -120,7 +123,7 @@ def main():
             ### Train the discriminator with real data
             d_optimizer.zero_grad()
 
-            d_real, _ = discriminator(real)
+            d_real = discriminator(real, prev)
 
             # Add label smoothing
             d_loss_real = criterion(d_real, 0.9 * torch.ones_like(d_real))
@@ -132,7 +135,7 @@ def main():
             noise = torch.randn(batch_size, z_dim).to(device)
 
             fake = generator(noise, prev)
-            d_fake, _ = discriminator(fake.detach())
+            d_fake = discriminator(fake.detach(), prev)
 
             d_loss_fake = criterion(d_fake, torch.zeros_like(d_fake))
             d_loss_fake.backward(retain_graph=False)
@@ -146,17 +149,30 @@ def main():
             ### Train the generator
             g_optimizer.zero_grad()
 
-            d_fake, _ = discriminator(fake)
+            d_fake = discriminator(fake, prev)
 
             g_loss = criterion(d_fake, torch.ones_like(d_fake))
 
             fx_loss_1 = feature_criterion(real.mean(0), fake.mean(0))
-            fx_loss_1 = l_1 * fx_loss_1
+            fx_loss_1 = bar_penalty * fx_loss_1
 
-            # fx_loss_2 = feature_criterion(fx_fake.mean(0), fx_real.mean(0))
-            # fx_loss_2 = l_2 * fx_loss_2
+            fx_fake = discriminator.get_feature(fake, prev)
+            fx_real = discriminator.get_feature(real, prev)
 
-            g_loss = g_loss + fx_loss_1
+            fx_loss_2 = feature_criterion(fx_fake.mean(0), fx_real.mean(0))
+            fx_loss_2 = feature_penalty * fx_loss_2
+
+            n_activated = (torch.sigmoid(fake) > activation).float().mean(2)
+
+            n_activated = (
+                feature_criterion(
+                    n_activated,
+                    torch.zeros_like(n_activated),
+                )
+                * activation_penalty
+            )
+
+            g_loss = g_loss + fx_loss_1 + fx_loss_2 + n_activated
             g_loss.backward(retain_graph=False)
 
             g_optimizer.step()
@@ -168,17 +184,30 @@ def main():
             noise = torch.randn(batch_size, z_dim).to(device)
             fake = generator(noise, prev)
 
-            d_fake, _ = discriminator(fake)
+            d_fake = discriminator(fake, prev)
 
             g_loss = criterion(d_fake, torch.ones_like(d_fake))
 
             fx_loss_1 = feature_criterion(real.mean(0), fake.mean(0))
-            fx_loss_1 = l_1 * fx_loss_1
+            fx_loss_1 = bar_penalty * fx_loss_1
 
-            # fx_loss_2 = feature_criterion(fx_fake.mean(0), fx_real.mean(0))
-            # fx_loss_2 = l_2 * fx_loss_2
+            fx_fake = discriminator.get_feature(fake, prev)
+            fx_real = discriminator.get_feature(real, prev)
 
-            g_loss = g_loss + fx_loss_1
+            fx_loss_2 = feature_criterion(fx_fake.mean(0), fx_real.mean(0))
+            fx_loss_2 = feature_penalty * fx_loss_2
+
+            n_activated = (torch.sigmoid(fake) > activation).float().mean(2)
+
+            n_activated = (
+                feature_criterion(
+                    n_activated,
+                    torch.zeros_like(n_activated),
+                )
+                * activation_penalty
+            )
+
+            g_loss = g_loss + fx_loss_1 + fx_loss_2 + n_activated
             g_loss.backward(retain_graph=False)
 
             g_optimizer.step()

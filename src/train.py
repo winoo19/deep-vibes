@@ -68,7 +68,7 @@ def main():
 
     epochs: int = 30
 
-    lr_g: float = 0.0002
+    lr_g: float = 0.00025
     lr_d: float = 0.0002
 
     l_1: float = 0.15

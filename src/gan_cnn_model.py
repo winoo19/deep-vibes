@@ -106,6 +106,7 @@ class Generator(nn.Module):
         z_dim: int = 100,
         bar_length: int = 16,
         temperature: float = 1.0,
+        cutoff: float = 0.3,
     ) -> None:
         """
         Initializes the Generator.
@@ -120,6 +121,7 @@ class Generator(nn.Module):
         self.z_dim: int = z_dim
         self.bar_length: int = bar_length
         self.temperature: float = temperature
+        self.cutoff: float = cutoff
 
         self.fc1 = nn.Linear(self.z_dim, 1024)
         self.bn1 = nn.BatchNorm1d(1024)
@@ -211,6 +213,10 @@ class Generator(nn.Module):
         x = torch.sigmoid(
             self.deconv4(x) / self.temperature
         )  # (batch_size, 1, bar_length, pitch_dim)
+
+        x = x.clone()
+
+        x[x <= self.cutoff] = 0.0
 
         return x.squeeze(1)
 

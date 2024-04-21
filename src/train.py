@@ -30,19 +30,26 @@ Ideas:
         x dropout
         -- hpp tuning (more batch size, etc)
         x initialization
+        - .mean(1)
+        - instance noise and reduce dropout
+        - Try different cost functions, such as WGAN (check if use bn when changing cost function)
         - minibatch discrimination
         - Virtual batch normalization
         - Spectral normalization
-        - Try different cost functions, such as WGAN (check if use bn when changing cost function)
 """
 
 
 def main():
+    os.makedirs("checkpoints", exist_ok=True)
+    os.makedirs("generated", exist_ok=True)
     run = (
         max(
-            int(file.split("_")[2])
-            for file in os.listdir("generated")
-            if "gan_cnn" in file
+            (
+                int(file.split("_")[2])
+                for file in os.listdir("generated")
+                if "gan_cnn" in file
+            ),
+            default=-1,
         )
         + 1
     )
@@ -56,15 +63,15 @@ def main():
     z_dim: int = 100
 
     temperature: float = 1.0
+    dropout = 0.2
+    cutoff = 0.0
 
-    epochs: int = 20
+    epochs: int = 30
 
     lr_g: float = 0.00025
     lr_d: float = 0.0002
 
-    dropout = 0.5
-
-    l_1: float = 0.1
+    l_1: float = 0.15
     l_2: float = 1.0
 
     dataloader = load_data(
@@ -81,6 +88,7 @@ def main():
         z_dim=z_dim,
         bar_length=n_notes,
         temperature=temperature,
+        cutoff=cutoff,
     ).to(device)
 
     print(discriminator)
@@ -196,8 +204,22 @@ def main():
 
             torch.save(
                 {
-                    "discriminator": discriminator.state_dict(),
-                    "generator": generator.state_dict(),
+                    "discriminator_params": discriminator.state_dict(),
+                    "generator_params": generator.state_dict(),
+                    "discriminator_optimizer": d_optimizer.state_dict(),
+                    "generator_optimizer": g_optimizer.state_dict(),
+                    "discriminator": Discriminator(
+                        pitch_dim=pitch_dim, bar_length=n_notes, dropout=dropout
+                    ),
+                    "generator": Generator(
+                        pitch_dim=pitch_dim,
+                        forward_dim=forward_dim,
+                        cond_dim=cond_dim,
+                        z_dim=z_dim,
+                        bar_length=n_notes,
+                        temperature=temperature,
+                        cutoff=cutoff,
+                    ),
                 },
                 f"checkpoints/gan_cnn_{run}_{epoch}.pt",
             )
@@ -215,6 +237,12 @@ def main():
         },
         f"checkpoints/gan_cnn_{run}_{epoch}.pt",
     )
+    # generate samples and save them
+    generator.eval()
+    with torch.no_grad():
+        fake = generator(pred_noise, prev)
+        np.save(f"generated/gan_cnn_{run}_{epoch}_fake.npy", fake.cpu().numpy())
+        np.save(f"generated/gan_cnn_{run}_{epoch}_real.npy", real.cpu().numpy())
 
 
 if __name__ == "__main__":

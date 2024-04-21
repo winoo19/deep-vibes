@@ -74,10 +74,6 @@ class PianorollGanCNNDataset(BasePianorollDataset):
         for file_path in tqdm(file_paths[:n_files]):
             pianoroll: np.ndarray = np.load(os.path.join(self.data_path, file_path))
 
-            pianoroll = (pianoroll - np.min(pianoroll)) / (
-                np.max(pianoroll) - np.min(pianoroll)
-            )
-
             n = pianoroll.shape[0] // self.n_notes
 
             track = [self.silence] + [

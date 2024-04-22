@@ -207,7 +207,7 @@ def load_data(
 
 if __name__ == "__main__":
     # download_data()
-    # setup_data()
+    setup_data()
     # explore_data()
     transform_data()
     print("Nº songs:", len(os.listdir("data/npy")))

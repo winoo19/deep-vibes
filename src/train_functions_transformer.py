@@ -10,8 +10,8 @@ from src.utils import save_model
 # other libraries
 from tqdm import tqdm
 
-# device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
-device = "cpu"
+device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
+# device = "cpu"
 
 
 def train_loop_transformer(

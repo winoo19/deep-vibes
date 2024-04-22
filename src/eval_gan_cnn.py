@@ -57,7 +57,7 @@ def load_model(path: str) -> torch.nn.Module:
     Returns:
         torch.nn.Module: The generator model.
     """
-    model: dict = torch.load(path)
+    model: dict = torch.load(path, map_location=device)
 
     gen: torch.nn.Module = model["generator"]
 

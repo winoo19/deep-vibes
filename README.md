@@ -37,20 +37,10 @@ piano melodies.
 
 To get a local copy up and running follow these simple steps.
 
-### :wrench: Prerequisites
+### Prerequisites
 
-* Python 3.10.6
-* Dataset
-  - Download the dataset from [here](https://drive.google.com/file/d/1jLZ8wtRwxKZz6GbxzqpLNYqsWh-TF4-r/view).
-  - Extract the dataset and place it in the `data` directory.
-  ```
-  .
-  ├── data
-  │   └── surname_checked_midis_v1.2.zip
-  ```
-
-
-### :hammer: Installation
+- Python 3
+- Pytorch 2
 
 1. Clone the repo
    ```sh

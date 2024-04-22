@@ -270,7 +270,6 @@ def generate():
     plt.show()
 
     # Create out folder
-
     if not os.path.exists("out/"):
         os.makedirs("out/")
 
@@ -279,11 +278,9 @@ def generate():
 
     # Save midi
     pianoroll = matrix2pianoroll(matrix)
-    pianoroll2midi(pianoroll, f"out/generated_pianoroll_{timestamp}.mid")
+    pianoroll2midi(pianoroll, 4, f"out/generated_pianoroll_{timestamp}.mid")
 
 
 if __name__ == "__main__":
-    main()
-    # get_results()
-    # test_initialization()
-    # generate()
+    # main()
+    generate()

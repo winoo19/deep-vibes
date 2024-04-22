@@ -19,6 +19,7 @@ prueba.py
 pruebas/
 images2/
 results/
+data/*/
 
 
 # Byte-compiled / optimized / DLL files

@@ -4,6 +4,8 @@ import torch
 import os
 from torch.jit import RecursiveScriptModule
 
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
 
 @torch.no_grad()
 def parameters_to_double(model: torch.nn.Module) -> None:
@@ -53,7 +55,9 @@ def load_model(name: str) -> RecursiveScriptModule:
     """
 
     # define model
-    model: RecursiveScriptModule = torch.jit.load(f"models/{name}.pt")
+    model: RecursiveScriptModule = torch.jit.load(
+        f"models/{name}.pt", map_location=device
+    )
 
     return model
 

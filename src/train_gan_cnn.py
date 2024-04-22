@@ -17,30 +17,6 @@ from tqdm import tqdm
 device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
 set_seed(42)
 
-torch.autograd.set_detect_anomaly(True)
-
-
-"""
-Ideas:
-    change batch norm for layer norm
-    make the discriminator worse
-    explore GAN training techniques
-        x one-sided label smoothing
-        x feature matching
-        x dropout
-        -- hpp tuning (more batch size, etc)
-        x initialization
-        x Try different cost functions, such as WGAN (check if use bn when changing cost function)
-        x Penalize the generator for activating too many notes
-        x Pass prev to the discriminator
-        x Smooth the ouput
-        x instance noise
-        - minibatch discrimination
-        - Virtual batch normalization
-        - Spectral normalization
-        no .mean(1)
-"""
-
 
 def main():
     os.makedirs("checkpoints", exist_ok=True)
@@ -58,44 +34,45 @@ def main():
     )
     print(f"Run: {run}")
 
-    batch_size: int = 128
-    n_notes: int = 64
-    pitch_dim: int = 88
-    forward_dim: int = 256
-    cond_dim: int = 256
-    z_dim: int = 100
-
-    temperature: float = 1.0
-    dropout = 0.2
-
-    epochs: int = 30
-
-    lr_g: float = 0.0002
-    lr_d: float = 0.0002
-
-    bar_penalty: float = 0.1
-    feature_penalty: float = 1.0
-    activation_penalty: float = 0.5
-
-    noise_eps = 0.00
-    alpha_smoothing = 0.0
-    activation = 0.02
+    hpp_dict = dict(
+        batch_size=128,
+        n_notes=64,
+        pitch_dim=88,
+        forward_dim=256,
+        cond_dim=256,
+        z_dim=100,
+        temperature=1.0,
+        dropout=0.2,
+        epochs=30,
+        lr_g=0.0002,
+        lr_d=0.0002,
+        bar_penalty=0.1,
+        feature_penalty=1.0,
+        activation_penalty=0.5,
+        noise_eps=0.00,
+        alpha_smoothing=0.0,
+        activation=0.02,
+    )
 
     dataloader = load_data(
-        PianorollGanCNNDataset, n_notes=n_notes, batch_size=batch_size
+        PianorollGanCNNDataset,
+        n_notes=hpp_dict["n_notes"],
+        batch_size=hpp_dict["batch_size"],
     )
 
     discriminator = Discriminator(
-        pitch_dim=pitch_dim, bar_length=n_notes, dropout=dropout
+        pitch_dim=hpp_dict["pitch_dim"],
+        bar_length=hpp_dict["n_notes"],
+        dropout=hpp_dict["dropout"],
     ).to(device)
     generator = Generator(
-        pitch_dim=pitch_dim,
-        forward_dim=forward_dim,
-        cond_dim=cond_dim,
-        z_dim=z_dim,
-        bar_length=n_notes,
-        temperature=temperature,
-        alpha=alpha_smoothing,
+        pitch_dim=hpp_dict["pitch_dim"],
+        forward_dim=hpp_dict["forward_dim"],
+        cond_dim=hpp_dict["cond_dim"],
+        z_dim=hpp_dict["z_dim"],
+        bar_length=hpp_dict["n_notes"],
+        temperature=hpp_dict["temperature"],
+        alpha=hpp_dict["alpha_smoothing"],
     ).to(device)
 
     print(discriminator)
@@ -105,18 +82,20 @@ def main():
     feature_criterion = nn.MSELoss()
 
     d_optimizer = torch.optim.Adam(
-        discriminator.parameters(), lr=lr_d, betas=(0.5, 0.999)
+        discriminator.parameters(), lr=hpp_dict["lr_d"], betas=(0.5, 0.999)
     )
-    g_optimizer = torch.optim.Adam(generator.parameters(), lr=lr_g, betas=(0.5, 0.999))
+    g_optimizer = torch.optim.Adam(
+        generator.parameters(), lr=hpp_dict["lr_g"], betas=(0.5, 0.999)
+    )
 
-    pred_noise = torch.randn(batch_size, z_dim).to(device)
+    pred_noise = torch.randn(hpp_dict["batch_size"], hpp_dict["z_dim"]).to(device)
 
     accuracy_real = 0
     accuracy_fake = 0
     n_iter = 0
 
-    for epoch in range(epochs):
-        p_bar = tqdm(dataloader, desc=f"Epoch [{epoch + 1}/{epochs}]")
+    for epoch in range(hpp_dict["epochs"]):
+        p_bar = tqdm(dataloader, desc=f"Epoch [{epoch + 1}/{hpp_dict['epochs']}]")
 
         generator.train()
         discriminator.train()
@@ -127,7 +106,9 @@ def main():
             ### Train the discriminator with real data
             d_optimizer.zero_grad()
 
-            d_real = discriminator(real + noise_eps * torch.randn_like(real))
+            d_real = discriminator(
+                real + hpp_dict["noise_eps"] * torch.randn_like(real)
+            )
 
             # Add label smoothing
             d_loss_real = criterion(d_real, 0.9 * torch.ones_like(d_real))
@@ -136,10 +117,12 @@ def main():
             accuracy_real += (torch.sigmoid(d_real) > 0.5).float().mean().item()
 
             ### Train the discriminator with fake data
-            noise = torch.randn(batch_size, z_dim).to(device)
+            noise = torch.randn(hpp_dict["batch_size"], hpp_dict["z_dim"]).to(device)
 
             fake = generator(noise, prev)
-            d_fake = discriminator(fake.detach() + noise_eps * torch.randn_like(fake))
+            d_fake = discriminator(
+                fake.detach() + hpp_dict["noise_eps"] * torch.randn_like(fake)
+            )
 
             d_loss_fake = criterion(d_fake, torch.zeros_like(d_fake))
             d_loss_fake.backward(retain_graph=False)
@@ -153,27 +136,33 @@ def main():
             ### Train the generator
             g_optimizer.zero_grad()
 
-            d_fake = discriminator(fake + noise_eps * torch.randn_like(fake))
+            d_fake = discriminator(
+                fake + hpp_dict["noise_eps"] * torch.randn_like(fake)
+            )
 
             g_loss = criterion(d_fake, torch.ones_like(d_fake))
 
+            # Feature matching
+
             fx_loss_1 = feature_criterion(real.mean(0), fake.mean(0))
-            fx_loss_1 = bar_penalty * fx_loss_1
+            fx_loss_1 = hpp_dict["bar_penalty"] * fx_loss_1
 
             fx_fake = discriminator.get_feature(fake)
             fx_real = discriminator.get_feature(real)
 
             fx_loss_2 = feature_criterion(fx_fake.mean(0), fx_real.mean(0))
-            fx_loss_2 = feature_penalty * fx_loss_2
+            fx_loss_2 = hpp_dict["feature_penalty"] * fx_loss_2
 
-            n_activated = (torch.sigmoid(fake) > activation).float().mean(2)
+            # Penalize the generator for activating too many notes
+
+            n_activated = (torch.sigmoid(fake) > hpp_dict["activation"]).float().mean(2)
 
             n_activated = (
                 feature_criterion(
                     n_activated,
                     torch.zeros_like(n_activated),
                 )
-                * activation_penalty
+                * hpp_dict["activation_penalty"]
             )
 
             g_loss = g_loss + fx_loss_1 + fx_loss_2 + n_activated
@@ -185,30 +174,32 @@ def main():
 
             g_optimizer.zero_grad()
 
-            noise = torch.randn(batch_size, z_dim).to(device)
+            noise = torch.randn(hpp_dict["batch_size"], hpp_dict["z_dim"]).to(device)
             fake = generator(noise, prev)
 
-            d_fake = discriminator(fake + noise_eps * torch.randn_like(fake))
+            d_fake = discriminator(
+                fake + hpp_dict["noise_eps"] * torch.randn_like(fake)
+            )
 
             g_loss = criterion(d_fake, torch.ones_like(d_fake))
 
             fx_loss_1 = feature_criterion(real.mean(0), fake.mean(0))
-            fx_loss_1 = bar_penalty * fx_loss_1
+            fx_loss_1 = hpp_dict["bar_penalty"] * fx_loss_1
 
             fx_fake = discriminator.get_feature(fake)
             fx_real = discriminator.get_feature(real)
 
             fx_loss_2 = feature_criterion(fx_fake.mean(0), fx_real.mean(0))
-            fx_loss_2 = feature_penalty * fx_loss_2
+            fx_loss_2 = hpp_dict["feature_penalty"] * fx_loss_2
 
-            n_activated = (torch.sigmoid(fake) > activation).float().mean(2)
+            n_activated = (torch.sigmoid(fake) > hpp_dict["activation"]).float().mean(2)
 
             n_activated = (
                 feature_criterion(
                     n_activated,
                     torch.zeros_like(n_activated),
                 )
-                * activation_penalty
+                * hpp_dict["activation_penalty"]
             )
 
             g_loss = g_loss + fx_loss_1 + fx_loss_2 + n_activated
@@ -242,15 +233,17 @@ def main():
                     "discriminator_optimizer": d_optimizer.state_dict(),
                     "generator_optimizer": g_optimizer.state_dict(),
                     "discriminator": Discriminator(
-                        pitch_dim=pitch_dim, bar_length=n_notes, dropout=dropout
+                        pitch_dim=hpp_dict["pitch_dim"],
+                        bar_length=hpp_dict["n_notes"],
+                        dropout=hpp_dict["dropout"],
                     ),
                     "generator": Generator(
-                        pitch_dim=pitch_dim,
-                        forward_dim=forward_dim,
-                        cond_dim=cond_dim,
-                        z_dim=z_dim,
-                        bar_length=n_notes,
-                        temperature=temperature,
+                        pitch_dim=hpp_dict["pitch_dim"],
+                        forward_dim=hpp_dict["forward_dim"],
+                        cond_dim=hpp_dict["cond_dim"],
+                        z_dim=hpp_dict["z_dim"],
+                        bar_length=hpp_dict["n_notes"],
+                        temperature=hpp_dict["temperature"],
                     ),
                 },
                 f"checkpoints/gan_cnn_{run}_{epoch}.pth",
@@ -270,15 +263,17 @@ def main():
             "discriminator_optimizer": d_optimizer.state_dict(),
             "generator_optimizer": g_optimizer.state_dict(),
             "discriminator": Discriminator(
-                pitch_dim=pitch_dim, bar_length=n_notes, dropout=dropout
+                pitch_dim=hpp_dict["pitch_dim"],
+                bar_length=hpp_dict["n_notes"],
+                dropout=hpp_dict["dropout"],
             ),
             "generator": Generator(
-                pitch_dim=pitch_dim,
-                forward_dim=forward_dim,
-                cond_dim=cond_dim,
-                z_dim=z_dim,
-                bar_length=n_notes,
-                temperature=temperature,
+                pitch_dim=hpp_dict["pitch_dim"],
+                forward_dim=hpp_dict["forward_dim"],
+                cond_dim=hpp_dict["cond_dim"],
+                z_dim=hpp_dict["z_dim"],
+                bar_length=hpp_dict["n_notes"],
+                temperature=hpp_dict["temperature"],
             ),
         },
         f"checkpoints/gan_cnn_{run}_{epoch}.pth",

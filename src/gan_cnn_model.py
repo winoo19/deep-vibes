@@ -40,11 +40,6 @@ class Smoothing(nn.Module):
 class Discriminator(nn.Module):
     """
     This class represents the discriminator of the GAN.
-
-    Attributes:
-        conv1 (nn.Conv2d): The first convolutional layer.
-        conv2 (nn.Conv2d): The second convolutional layer.
-        fc (nn.Linear): The fully connected layer.
     """
 
     def __init__(
@@ -52,6 +47,11 @@ class Discriminator(nn.Module):
     ):
         """
         Initializes the Discriminator.
+
+        Args:
+            pitch_dim (int): The number of pitches.
+            bar_length (int): The length of the bar.
+            dropout (float): The dropout rate.
         """
 
         super(Discriminator, self).__init__()
@@ -82,7 +82,6 @@ class Discriminator(nn.Module):
 
         Returns:
             torch.Tensor: The output tensor. Shape (batch_size).
-            torch.Tensor: The feature tensor. Shape (batch_size, 14, bar_length/2, 1).
         """
 
         batch_size = x.shape[0]
@@ -143,8 +142,6 @@ class Discriminator(nn.Module):
 class Generator(nn.Module):
     """
     This class represents the generator of the GAN.
-
-    Attributes:
     """
 
     def __init__(
@@ -159,6 +156,15 @@ class Generator(nn.Module):
     ) -> None:
         """
         Initializes the Generator.
+
+        Args:
+            pitch_dim (int): The number of pitches.
+            forward_dim (int): The forward dimension.
+            cond_dim (int): The condition dimension.
+            z_dim (int): The noise dimension.
+            bar_length (int): The length of the bar.
+            temperature (float): The temperature of the sigmoid function.
+            alpha (float): The smoothing alpha value.
         """
 
         super(Generator, self).__init__()

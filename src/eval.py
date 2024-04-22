@@ -14,18 +14,21 @@ from src.utils import set_seed
 device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
 
 
-def show(file: str = "generated\gan_cnn_9_12"):
+def show(file: str = "generated\gan_cnn_9_12", n: int = 5):
+    """
+    Plots the real, fake and previous pianorolls.
+
+    Args:
+        file (str): The file to load.
+        n (int): The number of pianorolls to plot.
+    """
     real: np.ndarray = np.load(f"{file}_real.npy")
     fake: np.ndarray = np.load(f"{file}_fake.npy")
     prev: np.ndarray = np.load(f"{file}_prev.npy")
-    # dataloader = load_data(PianorollGanCNNDataset, n_notes=64, batch_size=128)
 
     real_pr = [matrix2pianoroll(track.T) for track in real]
     fake_pr = [matrix2pianoroll(track.T) for track in fake]
     prev_pr = [matrix2pianoroll(track.T) for track in prev]
-
-    # Plot the real and fake matrices side by side
-    n = 5
 
     for i in range(n):
         ax = plt.figure(figsize=(8, 3)).add_subplot(111)
@@ -44,10 +47,19 @@ def show(file: str = "generated\gan_cnn_9_12"):
         plt.show()
 
 
-def load_model(path: str):
-    model = torch.load(path)
+def load_model(path: str) -> torch.nn.Module:
+    """
+    Loads the model from the path.
 
-    gen = model["generator"]
+    Args:
+        path (str): The path to the model.
+
+    Returns:
+        torch.nn.Module: The generator model.
+    """
+    model: dict = torch.load(path)
+
+    gen: torch.nn.Module = model["generator"]
 
     gen.load_state_dict(model["generator_params"])
 
@@ -61,18 +73,25 @@ def load_model(path: str):
     return gen
 
 
-def infer_from_silence(file: str = "generated\gan_cnn_9_12"):
+def infer_from_silence(file: str = "generated\gan_cnn_9_12", n: int = 5):
+    """
+    Generates pianorolls from silence given a model.
+
+    Args:
+        file (str): The file to load.
+        n (int): The number of pianorolls to generate.
+    """
     set_seed(42)
 
     gen = load_model(f"{file}.pth")
 
     with torch.no_grad():
-        z = torch.randn(5, 100).to(device)
-        fake = gen(z, torch.zeros(5, 64, 88).to(device))
+        z = torch.randn(n, 100).to(device)
+        fake = gen(z, torch.zeros(n, 64, 88).to(device))
 
         fake_pr = [matrix2pianoroll(track.cpu().numpy().T) for track in fake]
 
-        for i in range(5):
+        for i in range(n):
             ax = plt.figure(figsize=(8, 3)).add_subplot(111)
             ppr.plot_pianoroll(ax, fake_pr[i], xtick="auto")
 

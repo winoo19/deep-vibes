@@ -4,6 +4,64 @@ import matplotlib.pyplot as plt
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
+class Autoencoder(torch.nn.Module):
+    """
+    Autoencoder model.
+
+    Args:
+        input_size (int): Size of the input tensor.
+        encoder_hidden_size (int): Size of the hidden layer in the encoder.
+        decoder_hidden_size (int): Size of the hidden layer in the decoder.
+    """
+
+    def __init__(
+        self,
+        input_size: int,
+        embed_size: int,
+        encoder_hidden_size: int,
+        decoder_hidden_size: int,
+    ):
+        super(Autoencoder, self).__init__()
+        self.encoder = torch.nn.Sequential(
+            torch.nn.Linear(input_size, encoder_hidden_size),
+            torch.nn.LeakyReLU(),
+            torch.nn.Linear(encoder_hidden_size, embed_size),
+        )
+        self.decoder = torch.nn.Sequential(
+            torch.nn.Linear(embed_size, decoder_hidden_size),
+            torch.nn.LeakyReLU(),
+            torch.nn.Linear(decoder_hidden_size, input_size),
+            torch.nn.Sigmoid(),
+        )
+
+        self.de_dx: torch.Tensor = None
+
+    def forward(self, x):
+        e = self.encoder(x)
+        x = self.decoder(e)
+        return x, e
+
+    def encode(self, x):
+        return self.encoder(x)
+
+    def decode(self, x):
+        return self.decoder(x)
+
+
+class AELoss(torch.nn.Module):
+    def __init__(self, loss: torch.nn.Module):
+        super(AELoss, self).__init__()
+        self.loss = loss
+
+    def forward(self, x: tuple[torch.Tensor], y: torch.Tensor) -> torch.Tensor:
+        """
+        Args:
+            x (tuple[torch.Tensor]): Tuple with the output tensor and the encoded tensor.
+            y (torch.Tensor): Target tensor.
+        """
+        return self.loss(x[0], y)
+
+
 class LSTMVAE(torch.nn.Module):
     """
     Autoencoder model.

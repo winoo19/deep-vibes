@@ -3,91 +3,19 @@ from torch.utils.data import Dataset, DataLoader, random_split
 from torch.optim.lr_scheduler import LRScheduler
 from torch.utils.tensorboard import SummaryWriter
 
+# own libraries
 from src.data import DATA_PATH
 from src.utils import set_seed, save_model, parameters_to_double, load_model
 from src.datasets import PitchDataset
+from src.vae.models import Autoencoder, AELoss
+from src.vae.train_functions_ae import train_loop
 
+# other libraries
 from typing import TypedDict
 from datetime import datetime, timedelta
 
 device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
 set_seed(42)
-
-
-class Sigmoid(torch.nn.Module):
-    """
-    Sigmoid activation function with temperature.
-    """
-
-    def __init__(self, temperature: float = 1.0, trainable: bool = False):
-        super(Sigmoid, self).__init__()
-        self.trainable = trainable
-        if trainable:
-            self.temperature = torch.nn.Parameter(torch.tensor(temperature))
-        else:
-            self.temperature = temperature
-
-    def forward(self, x):
-        return torch.sigmoid(x / self.temperature)
-
-
-class Autoencoder(torch.nn.Module):
-    """
-    Autoencoder model.
-
-    Args:
-        input_size (int): Size of the input tensor.
-        encoder_hidden_size (int): Size of the hidden layer in the encoder.
-        decoder_hidden_size (int): Size of the hidden layer in the decoder.
-    """
-
-    def __init__(
-        self,
-        input_size: int,
-        embed_size: int,
-        encoder_hidden_size: int,
-        decoder_hidden_size: int,
-    ):
-        super(Autoencoder, self).__init__()
-        self.encoder = torch.nn.Sequential(
-            torch.nn.Linear(input_size, encoder_hidden_size),
-            torch.nn.ReLU(),
-            torch.nn.Linear(encoder_hidden_size, embed_size),
-            torch.nn.ReLU(),
-        )
-        self.decoder = torch.nn.Sequential(
-            torch.nn.Linear(embed_size, decoder_hidden_size),
-            torch.nn.ReLU(),
-            torch.nn.Linear(decoder_hidden_size, input_size),
-            Sigmoid(temperature=2.0, trainable=False),
-        )
-
-        self.de_dx: torch.Tensor = None
-
-    def forward(self, x):
-        e = self.encoder(x)
-        x = self.decoder(e)
-        return x, e
-
-    def encode(self, x):
-        return self.encoder(x)
-
-    def decode(self, x):
-        return self.decoder(x)
-
-
-class AELoss(torch.nn.Module):
-    def __init__(self, loss: torch.nn.Module):
-        super(AELoss, self).__init__()
-        self.loss = loss
-
-    def forward(self, x: tuple[torch.Tensor], y: torch.Tensor) -> torch.Tensor:
-        """
-        Args:
-            x (tuple[torch.Tensor]): Tuple with the output tensor and the encoded tensor.
-            y (torch.Tensor): Target tensor.
-        """
-        return self.loss(x[0], y)
 
 
 class HyperParams(TypedDict):
@@ -157,7 +85,7 @@ def main() -> None:
 
     # define name and writer
     timestamp: str = datetime.now().strftime("%Y%m%dT%H%M%S")
-    model_name: str = f"model_{timestamp}"
+    model_name: str = f"model_ae_{timestamp}"
     writer: SummaryWriter = SummaryWriter(f"runs/{model_name}")
 
     # define model
@@ -215,7 +143,9 @@ def main() -> None:
 
 def test():
     # Load model
-    model = load_model("model_val_loss_0.047").to(device)
+    model = load_model("model_ae_20240422T195628/autosaves/model_val_loss_0.042").to(
+        device
+    )
     model.eval()
 
     # C chord medium velocity
@@ -230,7 +160,7 @@ def test():
     print(C[[24, 28, 31]].cpu().detach().numpy().round(2))
     print(C_decoded[[24, 28, 31]])
     print(C_decoded.sum() - C_decoded[[24, 28, 31]].sum())
-    print(encoded)
+    print(encoded.cpu().detach().numpy().round(2))
 
     # G chord piano
     G = torch.zeros(88, dtype=torch.double).to(device)
@@ -246,7 +176,7 @@ def test():
     print(G[[31, 38, 43, 47, 50]].cpu().detach().numpy().round(2))
     print(G_decoded[[31, 38, 43, 47, 50]])
     print(G_decoded.sum() - G_decoded[[31, 38, 43, 47, 50]].sum())
-    print(encoded)
+    print(encoded.cpu().detach().numpy().round(2))
 
     # D chord forte
     D = torch.zeros(88, dtype=torch.double).to(device)
@@ -261,7 +191,7 @@ def test():
     print(D[[26, 31, 38, 43]].cpu().detach().numpy().round(2))
     print(D_decoded[[26, 31, 38, 43]])
     print(D_decoded.sum() - D_decoded[[26, 31, 38, 43]].sum())
-    print(encoded)
+    print(encoded.cpu().detach().numpy().round(2))
 
     # Silence
     S = torch.zeros(88, dtype=torch.double).to(device)
@@ -271,7 +201,7 @@ def test():
     S_decoded = output.cpu().detach().numpy().round(2)
     print(S.sum().item())
     print(S_decoded.sum())
-    print(encoded)
+    print(encoded.cpu().detach().numpy().round(2))
 
 
 if __name__ == "__main__":

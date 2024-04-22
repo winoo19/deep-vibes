@@ -9,7 +9,7 @@ outputs/
 out/
 test/
 tests/
-models/
+models/*/
 runs/
 .vscode/
 checkpoints/

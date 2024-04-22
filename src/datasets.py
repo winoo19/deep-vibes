@@ -93,6 +93,40 @@ class PianorollDiskDataset(BasePianorollDataset):
         )
 
 
+class PianorollTransformerDataset(BasePianorollDataset):
+    """
+    Base Dataset class for the MAESTRO dataset.
+    """
+
+    def __init__(self, data_path: str, n_notes: int = 16):
+        super().__init__(data_path, n_notes)
+        self.dataset = self.get_dataset()
+
+    def get_dataset(self) -> list[np.ndarray]:
+        """
+        Loads all dataset into memory and splits songs into nbar chunks.
+        """
+        dataset: list[np.ndarray] = []
+
+        for file_path in tqdm(os.listdir(self.data_path)):
+            pianoroll: np.ndarray = np.load(os.path.join(self.data_path, file_path))
+
+            n = pianoroll.shape[0] // self.n_notes
+            dataset.extend(
+                pianoroll[i * self.n_notes : (i + 1) * self.n_notes] for i in range(n)
+            )
+
+        return dataset
+
+    def __len__(self):
+        return len(self.dataset)
+
+    def __getitem__(self, idx: int) -> tuple[torch.Tensor, torch.Tensor]:
+        input_data: torch.Tensor = torch.tensor(self.dataset[idx], dtype=torch.double)
+        target_data: torch.Tensor = torch.tensor(self.dataset[idx], dtype=torch.double)
+        return input_data, target_data
+
+
 class PianorollGanCNNDataset(BasePianorollDataset):
     """
     Dataset class for the MAESTRO dataset for the CNN Gan model.

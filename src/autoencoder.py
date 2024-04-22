@@ -12,6 +12,7 @@ from typing import TypedDict
 from datetime import datetime, timedelta
 
 device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
+print(f"Device: {device}")
 set_seed(42)
 
 

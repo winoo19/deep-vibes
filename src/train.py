@@ -31,7 +31,10 @@ Ideas:
         -- hpp tuning (more batch size, etc)
         x initialization
         x Try different cost functions, such as WGAN (check if use bn when changing cost function)
-        - instance noise and reduce dropout
+        x Penalize the generator for activating too many notes
+        x Pass prev to the discriminator
+        x Smooth the ouput
+        x instance noise
         - minibatch discrimination
         - Virtual batch normalization
         - Spectral normalization
@@ -55,7 +58,7 @@ def main():
     )
     print(f"Run: {run}")
 
-    batch_size: int = 128
+    batch_size: int = 1024
     n_notes: int = 64
     pitch_dim: int = 88
     forward_dim: int = 256
@@ -64,7 +67,6 @@ def main():
 
     temperature: float = 1.0
     dropout = 0.5
-    cutoff = 0.0
 
     epochs: int = 30
 
@@ -75,7 +77,9 @@ def main():
     feature_penalty: float = 1.0
     activation_penalty: float = 0.5
 
-    activation = 0.3
+    noise_eps = 0.2
+    alpha_smoothing = 0.0
+    activation = 0.05
 
     dataloader = load_data(
         PianorollGanCNNDataset, n_notes=n_notes, batch_size=batch_size
@@ -91,7 +95,7 @@ def main():
         z_dim=z_dim,
         bar_length=n_notes,
         temperature=temperature,
-        cutoff=cutoff,
+        alpha=alpha_smoothing,
     ).to(device)
 
     print(discriminator)
@@ -123,7 +127,7 @@ def main():
             ### Train the discriminator with real data
             d_optimizer.zero_grad()
 
-            d_real = discriminator(real, prev)
+            d_real = discriminator(real + noise_eps * torch.randn_like(real), prev)
 
             # Add label smoothing
             d_loss_real = criterion(d_real, 0.9 * torch.ones_like(d_real))
@@ -135,7 +139,9 @@ def main():
             noise = torch.randn(batch_size, z_dim).to(device)
 
             fake = generator(noise, prev)
-            d_fake = discriminator(fake.detach(), prev)
+            d_fake = discriminator(
+                fake.detach() + noise_eps * torch.randn_like(fake), prev
+            )
 
             d_loss_fake = criterion(d_fake, torch.zeros_like(d_fake))
             d_loss_fake.backward(retain_graph=False)
@@ -149,7 +155,7 @@ def main():
             ### Train the generator
             g_optimizer.zero_grad()
 
-            d_fake = discriminator(fake, prev)
+            d_fake = discriminator(fake + noise_eps * torch.randn_like(fake), prev)
 
             g_loss = criterion(d_fake, torch.ones_like(d_fake))
 
@@ -184,7 +190,7 @@ def main():
             noise = torch.randn(batch_size, z_dim).to(device)
             fake = generator(noise, prev)
 
-            d_fake = discriminator(fake, prev)
+            d_fake = discriminator(fake + noise_eps * torch.randn_like(fake), prev)
 
             g_loss = criterion(d_fake, torch.ones_like(d_fake))
 
@@ -247,7 +253,6 @@ def main():
                         z_dim=z_dim,
                         bar_length=n_notes,
                         temperature=temperature,
-                        cutoff=cutoff,
                     ),
                 },
                 f"checkpoints/gan_cnn_{run}_{epoch}.pth",
@@ -276,7 +281,6 @@ def main():
                 z_dim=z_dim,
                 bar_length=n_notes,
                 temperature=temperature,
-                cutoff=cutoff,
             ),
         },
         f"checkpoints/gan_cnn_{run}_{epoch}.pth",

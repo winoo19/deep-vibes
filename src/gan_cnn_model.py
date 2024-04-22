@@ -3,6 +3,40 @@ import torch
 import torch.nn as nn
 
 
+device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
+
+
+class Smoothing(nn.Module):
+    """
+    This class represents the smoothing layer.
+
+    Attributes:
+        alpha (float): The alpha value.
+    """
+
+    def __init__(self, alpha: float = 0.1):
+        """
+        Initializes the Smoothing layer.
+        """
+        super(Smoothing, self).__init__()
+
+        self.kernel: torch.Tensor = (
+            torch.tensor([alpha, 1.0 - alpha, 0.0]).float().view(1, 1, 3).to(device)
+        )
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        Forward pass of the smoothing layer.
+
+        Args:
+            x (torch.Tensor): The input tensor.
+
+        Returns:
+            torch.Tensor: The smoothed tensor.
+        """
+        return nn.functional.conv2d(x, self.kernel.unsqueeze(0), padding=(0, 1))
+
+
 class Discriminator(nn.Module):
     """
     This class represents the discriminator of the GAN.
@@ -26,12 +60,12 @@ class Discriminator(nn.Module):
         self.bar_length: int = bar_length
 
         self.conv1 = nn.Conv2d(2, 32, kernel_size=(2, self.pitch_dim), stride=2)
-        self.conv2 = nn.Conv2d(32, 77, kernel_size=(4, 1), stride=2)
-        self.bn1 = nn.BatchNorm2d(77)
+        self.conv2 = nn.Conv2d(32, 64, kernel_size=(4, 1), stride=2)
+        self.bn1 = nn.BatchNorm2d(64)
 
-        self.l1 = nn.Linear((self.bar_length - 4) // 4 * 77, 1024)
-        self.bn2 = nn.BatchNorm1d(1024)
-        self.l2 = nn.Linear(1024, 1)
+        self.l1 = nn.Linear((self.bar_length - 4) // 4 * 64, 512)
+        self.bn2 = nn.BatchNorm1d(512)
+        self.l2 = nn.Linear(512, 1)
 
         self.lrelu = nn.LeakyReLU(0.2)
 
@@ -127,7 +161,7 @@ class Generator(nn.Module):
         z_dim: int = 100,
         bar_length: int = 16,
         temperature: float = 1.0,
-        cutoff: float = 0.3,
+        alpha: float = 0.1,
     ) -> None:
         """
         Initializes the Generator.
@@ -142,7 +176,6 @@ class Generator(nn.Module):
         self.z_dim: int = z_dim
         self.bar_length: int = bar_length
         self.temperature: float = temperature
-        self.cutoff: float = cutoff
 
         self.fc1 = nn.Linear(self.z_dim, 1024)
         self.bn1 = nn.BatchNorm1d(1024)
@@ -151,40 +184,42 @@ class Generator(nn.Module):
         self.bn2 = nn.BatchNorm1d(self.forward_dim * self.bar_length // 8)
 
         self.bn3 = nn.BatchNorm2d(self.forward_dim)
-        self.bn4 = nn.BatchNorm2d(self.forward_dim)
-        self.bn5 = nn.BatchNorm2d(self.forward_dim)
+        self.bn4 = nn.BatchNorm2d(self.forward_dim * 2)
+        self.bn5 = nn.BatchNorm2d(self.forward_dim * 2)
 
         self.deconv1 = nn.ConvTranspose2d(
             self.concat_dim, self.forward_dim, kernel_size=(2, 1), stride=2
         )
         self.deconv2 = nn.ConvTranspose2d(
-            self.concat_dim, self.forward_dim, kernel_size=(2, 1), stride=2
+            self.concat_dim, self.forward_dim * 2, kernel_size=(2, 1), stride=2
         )
         self.deconv3 = nn.ConvTranspose2d(
-            self.concat_dim, self.forward_dim, kernel_size=(2, 1), stride=2
+            self.concat_dim * 2, self.forward_dim * 2, kernel_size=(2, 1), stride=2
         )
         self.deconv4 = nn.ConvTranspose2d(
-            self.concat_dim, 1, kernel_size=(1, self.pitch_dim), stride=(1, 2)
+            self.concat_dim * 2, 1, kernel_size=(1, self.pitch_dim), stride=(1, 2)
         )
 
         self.conv1 = nn.Conv2d(
-            1, self.cond_dim, kernel_size=(1, self.pitch_dim), stride=(1, 2)
+            1, self.cond_dim * 2, kernel_size=(1, self.pitch_dim), stride=(1, 2)
         )
         self.conv2 = nn.Conv2d(
-            self.cond_dim, self.cond_dim, kernel_size=(2, 1), stride=2
+            self.cond_dim * 2, self.cond_dim * 2, kernel_size=(2, 1), stride=2
         )
         self.conv3 = nn.Conv2d(
-            self.cond_dim, self.cond_dim, kernel_size=(2, 1), stride=2
+            self.cond_dim * 2, self.cond_dim, kernel_size=(2, 1), stride=2
         )
         self.conv4 = nn.Conv2d(
             self.cond_dim, self.cond_dim, kernel_size=(2, 1), stride=2
         )
 
-        self.bn_prev1 = nn.BatchNorm2d(self.cond_dim)
-        self.bn_prev2 = nn.BatchNorm2d(self.cond_dim)
+        self.bn_prev1 = nn.BatchNorm2d(self.cond_dim * 2)
+        self.bn_prev2 = nn.BatchNorm2d(self.cond_dim * 2)
         self.bn_prev3 = nn.BatchNorm2d(self.cond_dim)
         self.bn_prev4 = nn.BatchNorm2d(self.cond_dim)
+
         self.lrelu = nn.LeakyReLU(0.2)
+        self.smoothing = Smoothing(alpha)
 
         self.reset_parameters()
 
@@ -234,10 +269,6 @@ class Generator(nn.Module):
         x = torch.sigmoid(
             self.deconv4(x) / self.temperature
         )  # (batch_size, 1, bar_length, pitch_dim)
-
-        x = x.clone()
-
-        x[x <= self.cutoff] = 0.0
 
         return x.squeeze(1)
 

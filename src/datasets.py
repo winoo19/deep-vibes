@@ -45,7 +45,53 @@ class PianorollDataset(BasePianorollDataset):
         return len(self.dataset)
 
     def __getitem__(self, idx):
-        return torch.tensor(self.dataset[idx], dtype=torch.float32)
+        return torch.tensor(self.dataset[idx], dtype=torch.double), torch.tensor(
+            self.dataset[idx], dtype=torch.double
+        )
+
+
+class BinaryPianorollDataset(BasePianorollDataset):
+    """
+    Base Dataset class for the MAESTRO dataset.
+    """
+
+    def __init__(self, data_path: str, n_notes: int = 16):
+        super().__init__(data_path, n_notes)
+        self.dataset, self.threshold = self.get_dataset()
+
+    def get_dataset(self) -> list[np.ndarray]:
+        """
+        Loads all dataset into memory and splits songs into nbar chunks.
+        """
+        dataset: list[np.ndarray] = []
+        velocities_mean: list[float] = []
+        velocities_std: list[float] = []
+
+        for file_path in tqdm(os.listdir(self.data_path)):
+            pianoroll: np.ndarray = np.load(os.path.join(self.data_path, file_path))
+
+            # Velocities of non-zero notes
+            velocities_mean.append(pianoroll[pianoroll > 0].mean())
+            velocities_std.append(pianoroll[pianoroll > 0].std())
+
+            n = pianoroll.shape[0] // self.n_notes
+            dataset.extend(
+                pianoroll[i * self.n_notes : (i + 1) * self.n_notes] for i in range(n)
+            )
+
+        threshold = np.mean(velocities_mean) - 2 * np.std(velocities_mean)
+
+        return dataset, threshold
+
+    def __len__(self):
+        return len(self.dataset)
+
+    def __getitem__(self, idx):
+        return torch.tensor(
+            (self.dataset[idx] > self.threshold).astype(float), dtype=torch.double
+        ), torch.tensor(
+            (self.dataset[idx] > self.threshold).astype(float), dtype=torch.double
+        )
 
 
 class PianorollDiskDataset(BasePianorollDataset):
@@ -61,9 +107,6 @@ class PianorollDiskDataset(BasePianorollDataset):
         index_to_file_and_idx: list[tuple[str, int]] = []
 
         for file_path in tqdm(os.listdir(self.data_path), desc="Indexing dataset"):
-            # pianoroll: np.ndarray = np.load(os.path.join(self.data_path, file_path))
-            # n = pianoroll.shape[0] // self.n_notes
-
             # Read shape of npy without loading it using mmap_mode
             with open(os.path.join(self.data_path, file_path), "rb") as f:
                 major, minor = np.lib.format.read_magic(f)

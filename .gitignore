@@ -1,5 +1,5 @@
 # To have a clean repo
-data/
+# data/
 soundfont/
 soundfonts/
 test/
@@ -17,6 +17,8 @@ generated/
 pruebas.py
 prueba.py
 pruebas/
+images2/
+results/
 
 
 # Byte-compiled / optimized / DLL files

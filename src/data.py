@@ -135,13 +135,13 @@ def explore_data() -> None:
     plt.show()
 
 
-def transform_data() -> None:
+def transform_data(npy_folder: str = "npy", n_composers: int = 10) -> None:
     """
     This method transforms the data from midi to piano roll and saves it as a numpy file.
     """
 
     midi_path = os.path.join(DATA_FOLDER, "midi")
-    npy_path = os.path.join(DATA_FOLDER, "npy")
+    npy_path = os.path.join(DATA_FOLDER, npy_folder)
 
     if os.path.exists(npy_path):
         print("Data already transformed!")
@@ -149,7 +149,7 @@ def transform_data() -> None:
 
     os.makedirs(npy_path, exist_ok=True)
 
-    most_common_composers, _ = get_most_common_composers(n_most_common=10)
+    most_common_composers, _ = get_most_common_composers(n_most_common=n_composers)
 
     # Skip if composer is not in most common composers
     valid_paths = [
@@ -205,18 +205,19 @@ def load_data(
     return data_loader
 
 
-if __name__ == "__main__":
-    # download_data()
+def main():
+    """
+    This method runs the data pipeline.
+    """
+
+    # Setup the data
     setup_data()
-    # explore_data()
+
+    # Transform the data
     transform_data()
-    print("Nº songs:", len(os.listdir("data/npy")))
 
-    # dataset = PianorollDataset
-    # data_loader = load_data(dataset)
-    # print(len(data_loader))
+    print(f"Succesfully transformed {len(os.listdir(DATA_PATH))} files!")
 
-    # dataset = PianorollGanCNNDataset
-    # data_loader = load_data(dataset)
-    # print(len(data_loader))
-    # input("Press Enter to continue...")
+
+if __name__ == "__main__":
+    main()

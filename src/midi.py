@@ -87,13 +87,20 @@ def piano_roll_to_pretty_midi(piano_roll, fs=100, program=0):
     return pm
 
 
+def pianoroll2midi(pianoroll: np.ndarray, fs: int, save_path: str) -> None:
+    """
+    This function converts a pretty_midi pianoroll to a MIDI file.
+    """
+    pm = piano_roll_to_pretty_midi(pianoroll, fs=fs, program=0)
+    pm.write(save_path)
+
+
 def pianoroll2audio(pianoroll: np.ndarray, fs: int, filename: str) -> None:
     """
     This function converts a pretty_midi pianoroll to a MIDI file and then
     to an audio file.
     """
-    pm = piano_roll_to_pretty_midi(pianoroll, fs=fs, program=0)
-    pm.write(f"{OUTPUT_FOLDER}/{filename}.mid")
+    pianoroll2midi(pianoroll, fs=fs, save_path=f"{OUTPUT_FOLDER}/{filename}.mid")
 
     # Convert the MIDI file to an audio file
     FluidSynth(f"{SOUNDFONTS_FOLDER}/{SOUND_FONT}").midi_to_audio(
@@ -121,7 +128,7 @@ def pianoroll2matrix(pianoroll: np.ndarray) -> np.ndarray:
 def matrix2pianoroll(matrix: np.ndarray) -> np.ndarray:
     """
     This function convert our matrix representation of pianoroll to the pretty_midi form.
-    - Velcoity values are scaled back to [0, 128]
+    - Velocity values are scaled back to [0, 127]
     - Pitch channel is padded to 128 keys.
 
     Args:
@@ -132,7 +139,7 @@ def matrix2pianoroll(matrix: np.ndarray) -> np.ndarray:
     """
 
     # Scale the velocity values and transpose the matrix
-    piano_roll_scaled_T = (matrix * 128).astype(np.uint8).T
+    piano_roll_scaled_T = (matrix * 127).astype(np.uint8).T
 
     # Pad the piano-roll to 128 keys
     piano_roll_padded = np.pad(piano_roll_scaled_T, ((21, 19), (0, 0)), "constant")
@@ -154,6 +161,90 @@ def trim_silence(matrix: np.ndarray) -> np.ndarray:
     end = collapsed[-1]
 
     return matrix[start:end]
+
+
+def generate_random_pianoroll(n_notes: int):
+    """
+    Generate a random pianoroll of n_notes notes.
+    """
+    matrix = np.zeros((n_notes, 88), dtype=np.float32)
+
+    t = 0
+    while t < n_notes:
+        # Random number of time steps from 1 to 16
+        time_steps = np.random.randint(1, 17)
+        # Random number of notes from 0 to 10
+        n = np.random.randint(0, 11)
+        # Random notes
+        notes = np.random.randint(0, 88, n)
+
+        matrix[t : t + time_steps, notes] = 1
+
+        t += time_steps
+
+    return matrix
+
+
+def generate_random_matrix(n_notes: int):
+    """ """
+
+    MAX_N_PITCHES = 5
+    PROB_START_PLAYING = 0.65
+    PROB_ADD_SOME_NOTES = 0.2
+    PROB_REMOVE_SOME_NOTES = 0.2
+    PROB_STOP_PLAYING_ALL_NOTES = 0.05
+
+    MIN_PITCH = 10
+    MAX_PITCH = 70
+
+    matrix = np.zeros((n_notes, 88), dtype=np.float32)
+
+    n_pitches = np.random.randint(1, MAX_N_PITCHES + 1)
+    notes = np.random.randint(MIN_PITCH, MAX_PITCH, n_pitches)
+
+    playing = False
+
+    for t in range(n_notes):
+        # Actions: play the notes, stop playing some notes, stop playing all notes
+
+        if playing:
+            matrix[t, notes] = 0.95
+
+        # Start play the notes
+        if playing == False and np.random.rand() < PROB_START_PLAYING:
+            n_pitches = np.random.randint(1, MAX_N_PITCHES + 1)
+            notes = np.random.randint(MIN_PITCH, MAX_PITCH, n_pitches)
+            matrix[t, notes] = 0.95
+            playing = True
+
+        # Add some note
+        if playing == True and np.random.rand() < PROB_ADD_SOME_NOTES:
+            n_pitches = np.random.randint(1, (MAX_N_PITCHES + 1) // 2)
+            notes = np.unique(
+                np.concatenate(
+                    [notes, np.random.randint(MIN_PITCH, MAX_PITCH, n_pitches)]
+                )
+            )
+
+        # Stop playing some notes
+        if playing == True and np.random.rand() < PROB_REMOVE_SOME_NOTES:
+            if len(notes) == 1:
+                notes_to_stop = notes
+                notes = None
+                playing = False
+            else:
+                notes_to_stop = np.random.choice(
+                    notes, np.random.randint(1, len(notes)), replace=False
+                )
+            matrix[t, notes_to_stop] = 0
+
+        # Stop playing all notes
+        if playing == True and np.random.rand() < PROB_STOP_PLAYING_ALL_NOTES:
+            matrix[t, notes] = 0
+            notes = None
+            playing = False
+
+    return matrix
 
 
 if __name__ == "__main__":

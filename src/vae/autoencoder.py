@@ -4,7 +4,6 @@ from torch.optim.lr_scheduler import LRScheduler
 from torch.utils.tensorboard import SummaryWriter
 
 from src.data import DATA_PATH
-from src.train_functions import train_loop
 from src.utils import set_seed, save_model, parameters_to_double, load_model
 from src.datasets import PitchDataset
 

@@ -75,10 +75,11 @@ def infer_from_silence(file: str = "generated\gan_cnn_9_12"):
         for i in range(5):
             ax = plt.figure(figsize=(8, 3)).add_subplot(111)
             ppr.plot_pianoroll(ax, fake_pr[i], xtick="auto")
-            plt.title("Fake")
-            plt.show()
+
+        plt.title("Generated from silence")
+        plt.show()
 
 
 if __name__ == "__main__":
-    # infer_from_silence("checkpoints\gan_cnn_8_10")
-    show("generated\gan_cnn_8_18")
+    infer_from_silence("checkpoints\gan_cnn_12_18")
+    show("generated\gan_cnn_12_18")

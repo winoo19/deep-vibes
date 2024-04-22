@@ -58,7 +58,7 @@ def main():
     )
     print(f"Run: {run}")
 
-    batch_size: int = 1024
+    batch_size: int = 128
     n_notes: int = 64
     pitch_dim: int = 88
     forward_dim: int = 256
@@ -66,20 +66,20 @@ def main():
     z_dim: int = 100
 
     temperature: float = 1.0
-    dropout = 0.5
+    dropout = 0.2
 
     epochs: int = 30
 
-    lr_g: float = 0.00025
+    lr_g: float = 0.0002
     lr_d: float = 0.0002
 
     bar_penalty: float = 0.1
     feature_penalty: float = 1.0
     activation_penalty: float = 0.5
 
-    noise_eps = 0.2
+    noise_eps = 0.00
     alpha_smoothing = 0.0
-    activation = 0.05
+    activation = 0.02
 
     dataloader = load_data(
         PianorollGanCNNDataset, n_notes=n_notes, batch_size=batch_size
@@ -127,7 +127,7 @@ def main():
             ### Train the discriminator with real data
             d_optimizer.zero_grad()
 
-            d_real = discriminator(real + noise_eps * torch.randn_like(real), prev)
+            d_real = discriminator(real + noise_eps * torch.randn_like(real))
 
             # Add label smoothing
             d_loss_real = criterion(d_real, 0.9 * torch.ones_like(d_real))
@@ -139,9 +139,7 @@ def main():
             noise = torch.randn(batch_size, z_dim).to(device)
 
             fake = generator(noise, prev)
-            d_fake = discriminator(
-                fake.detach() + noise_eps * torch.randn_like(fake), prev
-            )
+            d_fake = discriminator(fake.detach() + noise_eps * torch.randn_like(fake))
 
             d_loss_fake = criterion(d_fake, torch.zeros_like(d_fake))
             d_loss_fake.backward(retain_graph=False)
@@ -155,15 +153,15 @@ def main():
             ### Train the generator
             g_optimizer.zero_grad()
 
-            d_fake = discriminator(fake + noise_eps * torch.randn_like(fake), prev)
+            d_fake = discriminator(fake + noise_eps * torch.randn_like(fake))
 
             g_loss = criterion(d_fake, torch.ones_like(d_fake))
 
             fx_loss_1 = feature_criterion(real.mean(0), fake.mean(0))
             fx_loss_1 = bar_penalty * fx_loss_1
 
-            fx_fake = discriminator.get_feature(fake, prev)
-            fx_real = discriminator.get_feature(real, prev)
+            fx_fake = discriminator.get_feature(fake)
+            fx_real = discriminator.get_feature(real)
 
             fx_loss_2 = feature_criterion(fx_fake.mean(0), fx_real.mean(0))
             fx_loss_2 = feature_penalty * fx_loss_2
@@ -190,15 +188,15 @@ def main():
             noise = torch.randn(batch_size, z_dim).to(device)
             fake = generator(noise, prev)
 
-            d_fake = discriminator(fake + noise_eps * torch.randn_like(fake), prev)
+            d_fake = discriminator(fake + noise_eps * torch.randn_like(fake))
 
             g_loss = criterion(d_fake, torch.ones_like(d_fake))
 
             fx_loss_1 = feature_criterion(real.mean(0), fake.mean(0))
             fx_loss_1 = bar_penalty * fx_loss_1
 
-            fx_fake = discriminator.get_feature(fake, prev)
-            fx_real = discriminator.get_feature(real, prev)
+            fx_fake = discriminator.get_feature(fake)
+            fx_real = discriminator.get_feature(real)
 
             fx_loss_2 = feature_criterion(fx_fake.mean(0), fx_real.mean(0))
             fx_loss_2 = feature_penalty * fx_loss_2

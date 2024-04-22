@@ -91,7 +91,7 @@ class LSTMVAE(torch.nn.Module):
             batch_first=True,
         )
         self.mean_linear = torch.nn.Linear(encoder_hidden_size, embed_size)
-        self.std_linear = torch.nn.Sequential(
+        self.logvar_linear = torch.nn.Sequential(
             torch.nn.Linear(encoder_hidden_size, embed_size),
             torch.nn.ReLU(),
         )
@@ -128,7 +128,7 @@ class LSTMVAE(torch.nn.Module):
         _, hn = self.encoder(x)  # [1, batch_size, encoder_hidden_size]
         hn = hn.squeeze(0)  # [batch_size, encoder_hidden_size]
         mean = self.mean_linear(hn)  # [batch_size, embed_size]
-        std = self.std_linear(hn)  # [batch_size, embed_size]
+        std = self.logvar_linear(hn)  # [batch_size, embed_size]
 
         # Reparametrization trick
         z = mean + std * torch.randn_like(std)  # [batch_size, embed_size]
@@ -198,7 +198,7 @@ class CNNVAE(torch.nn.Module):
         encoder_output_size = dummy_output.view(1, -1).shape[1]
 
         self.mean_linear = torch.nn.Linear(encoder_output_size, embed_size)
-        self.std_linear = torch.nn.Sequential(
+        self.logvar_linear = torch.nn.Sequential(
             torch.nn.Linear(encoder_output_size, embed_size),
             torch.nn.ReLU(),
         )
@@ -270,7 +270,7 @@ class CNNVAE(torch.nn.Module):
         h1 = self.encoder(x)  # [batch_size, 64, 10, 11]
         h1 = h1.view(h1.size(0), -1)  # [batch_size, 64 * 10 * 11]
         mean = self.mean_linear(h1)  # [batch_size, embed_size]
-        std = self.std_linear(h1)  # [batch_size, embed_size]
+        std = self.logvar_linear(h1)  # [batch_size, embed_size]
 
         # Update running mean and std
         self.running_mean = 0.99 * self.running_mean + 0.01 * mean.mean(0, keepdim=True)

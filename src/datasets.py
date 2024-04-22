@@ -79,13 +79,6 @@ class BinaryPianorollDataset(BasePianorollDataset):
                 pianoroll[i * self.n_notes : (i + 1) * self.n_notes] for i in range(n)
             )
 
-        print(
-            f"Velocities mean: {np.mean(velocities_mean):.4f} +- {np.std(velocities_mean):.4f}"
-        )
-        print(
-            f"Velocities std: {np.mean(velocities_std):.4f} +- {np.std(velocities_std):.4f}"
-        )
-
         threshold = np.mean(velocities_mean) - 2 * np.std(velocities_mean)
 
         return dataset, threshold

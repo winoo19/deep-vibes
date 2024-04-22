@@ -11,15 +11,15 @@ from src.vae.train_functions import plot_generate, plot_original_reconstructed
 from src.vae.models import CNNVAE, VAELoss, GammaScheduler
 from src.utils import set_seed, save_model, parameters_to_double, load_model
 from src.datasets import BinaryPianorollDataset
+from src.midi import matrix2pianoroll, pianoroll2midi
 
 # Other
 from typing import TypedDict
 from datetime import datetime, timedelta
 import matplotlib.pyplot as plt
-import cProfile
+import os
 
 device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
-set_seed(42)
 
 
 class HyperParams(TypedDict):
@@ -42,6 +42,7 @@ def main() -> None:
     """
     This function is the main program for training.
     """
+    set_seed(42)
 
     # TODO
     hyperparams: HyperParams = {
@@ -233,6 +234,56 @@ def test_initialization():
     print(f"KL loss: {kl_loss.item()}")
 
 
+def generate():
+    """
+    Generate a random sample, plot it and save the midi.
+    """
+
+    model_state_dict = load_model("final_vae_model").state_dict()
+
+    model = CNNVAE(
+        n_notes=16 * 5,
+        n_features=88,
+        embed_size=1024,
+    )
+    model.load_state_dict(model_state_dict)
+    parameters_to_double(model)
+    model.to(device)
+    model.eval()
+
+    print("Model loaded!:")
+    print(model)
+
+    # Generate
+    timestamp: str = datetime.now().strftime("%Y%m%dT%H%M%S")
+
+    x_hat = model.generate()
+    matrix = x_hat.squeeze().detach().cpu().numpy()
+    matrix = (matrix - matrix.min()) / (matrix.max() - matrix.min()) > 0.3
+    matrix = matrix.astype(float)
+
+    plt.figure()
+    plt.imshow(matrix.T, aspect="auto", cmap="gray")
+    plt.title("Generated pianoroll")
+    plt.xlabel("Time")
+    plt.ylabel("Pitch")
+    plt.show()
+
+    # Create out folder
+
+    if not os.path.exists("out/"):
+        os.makedirs("out/")
+
+    # Save figure
+    plt.savefig(f"out/generated_pianoroll_{timestamp}.png")
+
+    # Save midi
+    pianoroll = matrix2pianoroll(matrix)
+    pianoroll2midi(pianoroll, f"out/generated_pianoroll_{timestamp}.mid")
+
+
 if __name__ == "__main__":
     main()
     # get_results()
+    # test_initialization()
+    # generate()

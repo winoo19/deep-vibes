@@ -48,19 +48,7 @@ To get a local copy up and running follow these simple steps.
   ├── data
   │   └── surname_checked_midis_v1.2.zip
   ```
-* Fluidsynth
-  - Installation in Windows is done with [Chocolatey](https://chocolatey.org/). 
-    ```sh
-    choco install fluidsynth
-    ```
-* Yamaha C5 Grand Piano Soundfont (For generating .wav files)
-  - Download the soundfont from [here](https://drive.google.com/file/d/1p0jY3AgGyD9DJGWC25aEUEaydI_n1-3M/view).
-  - Extract the soundfont and place it in the `soundfonts` directory.
-  ```
-  .
-  ├── soundfonts
-  │   └── Yamaha C5 Grand-v2.4.sf2
-  ```
+
 
 ### :hammer: Installation
 
@@ -74,16 +62,14 @@ To get a local copy up and running follow these simple steps.
     pip install -r requirements.txt
     ```
 
-3. Download the Yamaha C5 Grand Piano Soundfont from [here](https://drive.google.com/file/d/1p0jY3AgGyD9DJGWC25aEUEaydI_n1-3M/view) and place it in the `soundfonts` directory.
-    ```
-    .
-    ├── soundfonts
-    │   └── Yamaha C5 Grand-v2.4.sf2
+3. Run the data setup (Optional: Only requiered for training)
+    ```sh
+    python -m src.data
     ```
 
-4. Run the following command to generate a melody
+4. Generate melodies
     ```sh
-    python -m src.generate
+    python -m src.vae.main
     ```
 
 <p align="right">(<a href="#readme-top">↥ back to top ↥</a>)</p>
@@ -92,19 +78,15 @@ To get a local copy up and running follow these simple steps.
 
 <div style="display: flex; justify-content: center;">
   <a href="https://github.com/winoo19" style="margin: 0px 10px">
-    <!-- <img src="https://contrib.rocks/image?repo=winoo19/deep-vibes" /> -->
     <img src="https://github.com/winoo19.png" style="border-radius: 50%;" width="50" height="50">
   </a>
   <a href="https://github.com/gomicoder17" style="margin: 0px 10px">
-    <!-- <img src="https://contrib.rocks/image?repo=winoo19/deep-vibes" /> -->
     <img src="https://github.com/gomicoder17.png" style="border-radius: 50%;" width="50" height="50">
   </a>
   <a href="https://github.com/nicolasvillagranp" style="margin: 0px 10px">
-    <!-- <img src="https://contrib.rocks/image?repo=winoo19/deep-vibes" /> -->
     <img src="https://github.com/nicolasvillagranp.png" style="border-radius: 50%;" width="50" height="50">
   </a>
   <a href="https://github.com/mariokroll" style="margin: 0px 10px">
-    <!-- <img src="https://contrib.rocks/image?repo=winoo19/deep-vibes" /> -->
     <img src="https://github.com/mariokroll.png" style="border-radius: 50%;" width="50" height="50">
   </a>
 </div>

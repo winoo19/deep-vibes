@@ -72,7 +72,7 @@ def plot_original_reconstructed(
         sample: original pianoroll.
     """
 
-    x_hat, _, _, _ = model(sample.unsqueeze(0).to(device))
+    x_hat, _, _ = model(sample.unsqueeze(0).to(device))
     x_hat = torch.sigmoid(x_hat)
     matrix = x_hat.squeeze().detach().cpu().numpy()
     matrix = (matrix - matrix.min()) / (matrix.max() - matrix.min()) > 0.3

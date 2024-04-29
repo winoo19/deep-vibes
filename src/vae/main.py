@@ -55,9 +55,9 @@ def main() -> None:
         "batch_size": 128,
         "embed_size": 1024,
         "gamma": 0.0,
-        "gamma_zero_epochs": 1,
+        "gamma_zero_epochs": 0,
         "gamma_min_exponent": -4,
-        "gamma_max_exponent": -2,
+        "gamma_max_exponent": -4,
         "gamma_real_epochs": 1,
     }
 
@@ -282,5 +282,5 @@ def generate():
 
 
 if __name__ == "__main__":
-    # main()
-    generate()
+    main()
+    # generate()

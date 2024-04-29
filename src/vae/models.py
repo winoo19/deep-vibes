@@ -359,7 +359,7 @@ class GammaScheduler:
         self.max_exponent = max_exponent
         self.real_epochs = real_epochs
 
-        assert self.min_exponent < self.max_exponent
+        # assert self.min_exponent < self.max_exponent
 
         self.increase_epochs = max_exponent - min_exponent + 1
         self._step = 0

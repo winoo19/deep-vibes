@@ -1,4 +1,5 @@
 import os
+from matplotlib import pyplot as plt
 import numpy as np
 from midi2audio import FluidSynth
 import pretty_midi
@@ -247,14 +248,33 @@ def generate_random_matrix(n_notes: int):
     return matrix
 
 
-if __name__ == "__main__":
-    print(os.listdir("data/midi")[247])
-    npy_path = os.path.join("data", "npy")
-    matrix = np.load(os.path.join(npy_path, "pianoroll_247.npy"))
+def generate_noise(n_notes: int = 16 * 5):
+    """
+    Generate a random midi file with n_notes notes.
+    """
 
-    print("Pianoroll shape:", matrix.shape)
-
+    matrix = (np.random.rand(n_notes, 88) > 0.8).astype(np.float32)
     pianoroll = matrix2pianoroll(matrix)
-    print("Pianoroll shape:", pianoroll.shape)
+    pianoroll2midi(pianoroll, 16, "out/noise_midi.mid")
 
-    pianoroll2audio(pianoroll, fs=16, filename="pianoroll_247")
+    # Save image
+    plt.imshow(matrix.T, aspect="auto", cmap="gray")
+    plt.title("Noise pianoroll")
+    plt.xlabel("Time")
+    plt.ylabel("Pitch")
+    plt.savefig("out/noise_pianoroll.png")
+
+
+if __name__ == "__main__":
+    # print(os.listdir("data/midi")[247])
+    # npy_path = os.path.join("data", "npy")
+    # matrix = np.load(os.path.join(npy_path, "pianoroll_247.npy"))
+
+    # print("Pianoroll shape:", matrix.shape)
+
+    # pianoroll = matrix2pianoroll(matrix)
+    # print("Pianoroll shape:", pianoroll.shape)
+
+    # pianoroll2audio(pianoroll, fs=16, filename="pianoroll_247")
+
+    generate_noise()

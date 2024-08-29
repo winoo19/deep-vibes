@@ -52,7 +52,7 @@ To get a local copy up and running follow these simple steps.
     pip install -r requirements.txt
     ```
 
-3. Run the data setup (Optional: Only requiered for training)
+3. Run the data setup (Optional: Only required for training)
     ```sh
     python -m src.data
     ```

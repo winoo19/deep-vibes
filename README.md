@@ -3,7 +3,11 @@
 <!-- PROJECT LOGO -->
 <div align="center">
 <h1 align="center">Deep Vibes</h1>
-  <img src="https://api.junia.ai/storage/v1/object/sign/user-generated-images/18d32214-afe4-4bec-8652-8e6d1b062e19/fce27026-a09f-4199-a48e-80a12810ae8d.png?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1cmwiOiJ1c2VyLWdlbmVyYXRlZC1pbWFnZXMvMThkMzIyMTQtYWZlNC00YmVjLTg2NTItOGU2ZDFiMDYyZTE5L2ZjZTI3MDI2LWEwOWYtNDE5OS1hNDhlLTgwYTEyODEwYWU4ZC5wbmciLCJpYXQiOjE3MDA4ODEyMjAsImV4cCI6MTg1ODU2MTIyMH0.aTQlOzhzCDm_Wnj_tO1kDx-BFr_73tuyOEq6gJdf-gw" alt="Logo" width="250">
+  <img src="./docs/gen-midi1.png" alt="Logo" width="300">
+  <!-- Audio  -->
+  <audio controls>
+    <source src="./docs/gen-midi1.wav" type="audio/wav">
+    Your browser does not support the audio element.
 </div>
 
 <!-- TABLE OF CONTENTS -->
@@ -25,7 +29,7 @@
 <!-- ABOUT THE PROJECT -->
 ## :memo: About The Project
 
-We implement different deep learning arquitectures with various degrees of complexity to generate MIDI piano melodies:
+We implement different deep learning arquitectures with various degrees of complexity to generate MIDI piano jazz melodies:
 - **CNN+VAE**: Variational Autoencoder
 - **CNN+LSTM**: Long Short Term Memory
 - **CNN+GAN**: Generative Adversarial Network

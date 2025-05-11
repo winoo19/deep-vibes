@@ -3,13 +3,10 @@
 <!-- PROJECT LOGO -->
 <div align="center">
 <h1 align="center">Deep Vibes</h1>
-  <img src="./docs/gen-midi1.png" alt="Logo" width="300">
-  <!-- Audio  -->
-  <audio controls>
-    <source src="./docs/gen-midi1.wav" type="audio/wav">
-    Your browser does not support the audio element.
-</div>
+  
+https://github.com/user-attachments/assets/88bdeb23-df6a-4234-a65c-aa96f7d3946a
 
+</div>
 <!-- TABLE OF CONTENTS -->
 ---
 
@@ -34,6 +31,8 @@ We implement different deep learning arquitectures with various degrees of compl
 - **CNN+LSTM**: Long Short Term Memory
 - **CNN+GAN**: Generative Adversarial Network
 - **Transformer**: Decoder-only Transformer
+
+Detailed paper can be found in **[/docs/deep-vibes.pdf](./docs/deep-vibes.pdf)**.
 
 <!-- Getting Started -->
 ## :rocket: Getting Started
